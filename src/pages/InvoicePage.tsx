@@ -1,423 +1,577 @@
-import { useState } from "react";
-import { Search, Plus, Filter, MoreHorizontal, Eye, Edit, Trash2, Printer, Send } from "lucide-react";
-import { CardWithHeader } from "@/components/ui/CardWithHeader";
+import { useState, useEffect, useRef } from "react";
+import { 
+  Search, 
+  Plus, 
+  Filter, 
+  Trash2, 
+  MoreHorizontal, 
+  Eye, 
+  Edit, 
+  Printer, 
+  Send, 
+  Loader2, 
+  CalendarIcon, 
+  X,
+  Check,
+  ChevronsUpDown
+} from "lucide-react";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription 
+} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar"; 
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
-const invoices = [
-  {
-    id: "INV-2024-0001",
-    customer: "PT Maju Jaya",
-    date: "2024-01-15",
-    dueDate: "2024-02-15",
-    subtotal: "Rp 45.000.000",
-    tax: "Rp 4.950.000",
-    total: "Rp 49.950.000",
-    status: "Paid",
-  },
-  {
-    id: "INV-2024-0002",
-    customer: "CV Sukses Mandiri",
-    date: "2024-01-18",
-    dueDate: "2024-02-18",
-    subtotal: "Rp 32.500.000",
-    tax: "Rp 3.575.000",
-    total: "Rp 36.075.000",
-    status: "Pending",
-  },
-  {
-    id: "INV-2024-0003",
-    customer: "PT Sentosa Abadi",
-    date: "2024-01-20",
-    dueDate: "2024-02-20",
-    subtotal: "Rp 78.000.000",
-    tax: "Rp 8.580.000",
-    total: "Rp 86.580.000",
-    status: "Paid",
-  },
-  {
-    id: "INV-2024-0004",
-    customer: "UD Berkah",
-    date: "2024-01-10",
-    dueDate: "2024-01-25",
-    subtotal: "Rp 15.750.000",
-    tax: "Rp 1.732.500",
-    total: "Rp 17.482.500",
-    status: "Overdue",
-  },
-  {
-    id: "INV-2024-0005",
-    customer: "PT Global Indonesia",
-    date: "2024-01-22",
-    dueDate: "2024-02-22",
-    subtotal: "Rp 120.000.000",
-    tax: "Rp 13.200.000",
-    total: "Rp 133.200.000",
-    status: "Sent",
-  },
+// --- KONFIGURASI API ---
+const API_BASE_URL = "https://technokingindonesia.com/projekmagank/accurate-integration-project";
+
+// --- COMPONENT ASYNC SELECT (DIPERBAIKI) ---
+interface AsyncSelectProps {
+    value: string;
+    displayName?: string;
+    onChange: (val: string, name: string, extra?: any) => void;
+    placeholder: string;
+    apiEndpoint: string;
+}
+
+const AsyncSelect: React.FC<AsyncSelectProps> = ({ value, displayName, onChange, placeholder, apiEndpoint }) => {
+    const [query, setQuery] = useState("");
+    const [options, setOptions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    // Fungsi Fetch Data dengan Debugging Log
+    const fetchData = async (keyword: string) => {
+        setLoading(true);
+        try {
+            console.log(`Fetching: ${apiEndpoint}?q=${keyword}`); // DEBUG LOG
+            const res = await fetch(`${apiEndpoint}?q=${keyword}`);
+            const json = await res.json();
+            
+            console.log("Response:", json); // DEBUG LOG: Cek di Console Browser (F12)
+
+            if (json.s && Array.isArray(json.d)) {
+                setOptions(json.d);
+            } else {
+                setOptions([]);
+                console.warn("Format data backend tidak sesuai atau kosong:", json);
+            }
+        } catch(e) { 
+            console.error("Fetch Error:", e);
+            setOptions([]); 
+        } finally { 
+            setLoading(false); 
+        }
+    };
+
+    // Debounce Search
+    useEffect(() => {
+        const timer = setTimeout(() => { 
+            if (isOpen) fetchData(query); 
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [query, isOpen]);
+
+    // Click Outside Listener
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [wrapperRef]);
+
+    // JIKA ADA VALUE TERPILIH (TAMPILAN READ-ONLY VIEW)
+    if (value && !isOpen) {
+        return (
+            <div className="relative flex items-center w-full">
+                <div 
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors" 
+                    onClick={() => { 
+                        setIsOpen(true); 
+                        setQuery(""); // Reset query saat dibuka ulang untuk memancing fetch all
+                        fetchData(""); // Pancing data awal
+                    }}
+                >
+                    <span className="truncate font-medium text-foreground">{displayName || value}</span>
+                    <ChevronsUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
+                </div>
+                <button 
+                    type="button" 
+                    onClick={(e) => { e.stopPropagation(); onChange("", ""); }} 
+                    className="absolute right-8 p-1 hover:text-destructive transition-colors"
+                >
+                    <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                </button>
+            </div>
+        );
+    }
+
+    // TAMPILAN INPUT PENCARIAN & DROPDOWN
+    return (
+        <div className="relative w-full" ref={wrapperRef}>
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <input 
+                    className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-8 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" 
+                    placeholder={placeholder} 
+                    value={query} 
+                    onChange={(e) => setQuery(e.target.value)} 
+                    onFocus={() => setIsOpen(true)}
+                    onClick={() => setIsOpen(true)} 
+                    autoFocus={isOpen}
+                />
+                {loading && <Loader2 className="absolute right-2.5 top-3 h-4 w-4 animate-spin text-primary" />}
+            </div>
+            
+            {/* DROPDOWN MENU - PERBAIKAN Z-INDEX & POSITIONING */}
+            {isOpen && (
+                <div className="absolute top-full left-0 z-[9999] mt-1 w-full min-w-[200px] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+                    <div className="max-h-[250px] overflow-y-auto p-1">
+                        {options.length === 0 && !loading ? (
+                            <div className="px-2 py-3 text-sm text-center text-muted-foreground italic">
+                                Data tidak ditemukan
+                            </div>
+                        ) : (
+                            options.map((opt, i) => (
+                                <div 
+                                    key={i} 
+                                    className={cn(
+                                        "relative flex cursor-default select-none items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer",
+                                        value === opt.no && "bg-accent text-accent-foreground"
+                                    )}
+                                    onClick={() => { 
+                                        onChange(opt.no, opt.label, opt); 
+                                        setIsOpen(false); 
+                                    }}
+                                >
+                                    <Check className={cn("mr-2 h-4 w-4", value === opt.no ? "opacity-100" : "opacity-0")} />
+                                    <div className="flex flex-col">
+                                        <span className="font-medium">{opt.label}</span>
+                                        {/* Tampilkan info tambahan jika ada (misal No Item) */}
+                                        {opt.no !== opt.label && <span className="text-xs text-muted-foreground">{opt.no}</span>}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- DATA MOCK UNTUK VISUALISASI ---
+const summaryMetrics = [
+    { title: "Total Invoiced", value: "Rp 323.287.500", color: "text-foreground" },
+    { title: "Paid", value: "Rp 136.530.000", color: "text-green-600" },
+    { title: "Pending", value: "Rp 169.275.000", color: "text-yellow-600" },
+    { title: "Overdue", value: "Rp 17.482.500", color: "text-red-600" },
 ];
 
-const InvoicePage = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [invoiceItems, setInvoiceItems] = useState([
-    { id: 1, description: "", qty: 1, price: "", total: "" },
-  ]);
+const mockInvoices = [
+  { id: "INV-2024-0001", customer: "PT Maju Jaya", date: "2024-01-15", dueDate: "2024-02-15", total: "Rp 49.950.000", status: "Paid" },
+  { id: "INV-2024-0002", customer: "CV Sukses Mandiri", date: "2024-01-18", dueDate: "2024-02-18", total: "Rp 36.075.000", status: "Pending" },
+  { id: "INV-2024-0003", customer: "PT Sentosa Abadi", date: "2024-01-20", dueDate: "2024-02-20", total: "Rp 86.580.000", status: "Paid" },
+];
 
-  const filteredInvoices = invoices.filter(
-    (inv) =>
-      inv.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.customer.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+// --- MAIN INVOICE PAGE ---
+export function InvoicePage() {
+    const { toast } = useToast();
+    const [transDate, setTransDate] = useState<Date>(new Date());
+    const [customerNo, setCustomerNo] = useState("");
+    const [customerName, setCustomerName] = useState("");
+    const [description, setDescription] = useState("");
+    const [loading, setLoading] = useState(false);
+    
+    // UI State
+    const [searchTerm, setSearchTerm] = useState("");
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Paid":
-        return "bg-success/10 text-success";
-      case "Pending":
-        return "bg-warning/10 text-warning";
-      case "Overdue":
-        return "bg-destructive/10 text-destructive";
-      case "Sent":
-        return "bg-info/10 text-info";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
+    const [items, setItems] = useState([{ id: '1', itemNo: '', itemName: '', qty: 1, price: 0 }]);
 
-  const addItem = () => {
-    setInvoiceItems([
-      ...invoiceItems,
-      { id: invoiceItems.length + 1, description: "", qty: 1, price: "", total: "" },
-    ]);
-  };
+    const updateItem = (id: string, field: string, val: any) => {
+        setItems(prev => prev.map(r => r.id === id ? { ...r, [field]: val } : r));
+    };
 
-  return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Sales Invoice</h1>
-          <p className="text-muted-foreground mt-1">
-            Create and manage customer invoices
-          </p>
-        </div>
-        <button className="btn-gradient flex items-center gap-2 self-start">
-          <Plus className="w-4 h-4" />
-          New Invoice
-        </button>
-      </div>
+    const addItem = () => {
+        setItems([...items, { id: Date.now().toString(), itemNo: '', itemName: '', qty: 1, price: 0 }]);
+    };
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="metric-card">
-          <p className="text-sm text-muted-foreground">Total Invoiced</p>
-          <p className="text-2xl font-bold text-foreground mt-1">Rp 323.287.500</p>
-        </div>
-        <div className="metric-card">
-          <p className="text-sm text-muted-foreground">Paid</p>
-          <p className="text-2xl font-bold text-success mt-1">Rp 136.530.000</p>
-        </div>
-        <div className="metric-card">
-          <p className="text-sm text-muted-foreground">Pending</p>
-          <p className="text-2xl font-bold text-warning mt-1">Rp 169.275.000</p>
-        </div>
-        <div className="metric-card">
-          <p className="text-sm text-muted-foreground">Overdue</p>
-          <p className="text-2xl font-bold text-destructive mt-1">Rp 17.482.500</p>
-        </div>
-      </div>
+    const deleteItem = (id: string) => {
+        if(items.length > 1) {
+            setItems(items.filter(i => i.id !== id));
+        }
+    };
 
-      {/* Filters & Search */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search invoices..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-floating pl-10"
-          />
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-lg bg-card text-foreground hover:bg-muted transition-colors">
-          <Filter className="w-4 h-4" />
-          Filter
-        </button>
-      </div>
+    const subTotal = items.reduce((sum, i) => sum + (i.qty * i.price), 0);
+    const taxTotal = subTotal * 0.12; 
+    const grandTotal = subTotal + taxTotal;
 
-      {/* Invoice Form */}
-      <CardWithHeader title="Create Invoice" subtitle="Enter invoice details">
-        <div className="space-y-6">
-          {/* Header Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Invoice Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="Auto-generated"
-                  disabled
-                  className="input-floating bg-muted"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Customer *
-                </label>
-                <select className="input-floating">
-                  <option value="">Select customer</option>
-                  <option value="maju">PT Maju Jaya</option>
-                  <option value="sukses">CV Sukses Mandiri</option>
-                  <option value="sentosa">PT Sentosa Abadi</option>
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Select the customer for this invoice
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Reference Job Order
-                </label>
-                <select className="input-floating">
-                  <option value="">Select job order (optional)</option>
-                  <option value="jo1">JO-2024-001 - Website Development</option>
-                  <option value="jo2">JO-2024-002 - ERP Implementation</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+    const handleSubmit = async () => {
+        if (!customerNo) return toast({ title: "Validasi Gagal", description: "Pilih Pelanggan terlebih dahulu.", variant: "destructive" });
+        if (items.some(i => !i.itemNo)) return toast({ title: "Validasi Gagal", description: "Pilih Barang terlebih dahulu.", variant: "destructive" });
+
+        setLoading(true);
+        try {
+            const payload = {
+                customerNo,
+                transDate: format(transDate, "dd/MM/yyyy"),
+                description: description || "Invoice via Integration App",
+                detailItem: items.map(i => ({ itemNo: i.itemNo, quantity: i.qty, unitPrice: i.price }))
+            };
+
+            const res = await fetch(`${API_BASE_URL}/transaksi_invoice.php`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+
+            if (json.s) {
+                const invoiceNumber = json.r?.number || "Berhasil";
+                toast({ 
+                    title: "Sukses Disimpan!", 
+                    description: `Nomor Invoice: ${invoiceNumber}`, 
+                    className: "bg-green-600 text-white border-green-700" 
+                });
+                
+                // Reset Form
+                setItems([{ id: Date.now().toString(), itemNo: '', itemName: '', qty: 1, price: 0 }]);
+                setDescription("");
+                // setCustomerNo(""); setCustomerName(""); // Opsional: reset customer
+            } else {
+                const errorMsg = Array.isArray(json.d) ? json.d.join(", ") : (json.d?.message || "Terjadi kesalahan");
+                throw new Error(errorMsg);
+            }
+        } catch (err: any) {
+            toast({ title: "Gagal Menyimpan", description: err.message, variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case "Paid": return "bg-green-100 text-green-700";
+            case "Pending": return "bg-yellow-100 text-yellow-700";
+            case "Overdue": return "bg-red-100 text-red-700";
+            default: return "bg-gray-100 text-gray-700";
+        }
+    };
+
+    return (
+        <div className="space-y-6 p-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Invoice Date *
-                  </label>
-                  <input type="date" className="input-floating" />
+                    <h1 className="text-2xl font-bold text-foreground">Sales Invoice</h1>
+                    <p className="text-muted-foreground mt-1">
+                        Create and manage customer invoices
+                    </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Due Date *
-                  </label>
-                  <input type="date" className="input-floating" />
+                <Button className="flex items-center gap-2 self-start" onClick={() => window.scrollTo({ top: 500, behavior: 'smooth' })}>
+                    <Plus className="w-4 h-4" />
+                    New Invoice
+                </Button>
+            </div>
+
+            {/* Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                {summaryMetrics.map((metric, idx) => (
+                    <Card key={idx} className="shadow-sm">
+                        <CardContent className="p-4">
+                            <p className="text-sm text-muted-foreground">{metric.title}</p>
+                            <p className={`text-2xl font-bold mt-1 ${metric.color}`}>{metric.value}</p>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Filter Search */}
+            <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                        type="text"
+                        placeholder="Search invoices..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Payment Terms
-                </label>
-                <select className="input-floating">
-                  <option value="net30">Net 30 Days</option>
-                  <option value="net15">Net 15 Days</option>
-                  <option value="cod">Cash on Delivery</option>
-                  <option value="immediate">Immediate</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Notes
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Additional notes for the invoice"
-                  className="input-floating resize-none"
-                />
-              </div>
+                <Button variant="outline" className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filter
+                </Button>
             </div>
-          </div>
 
-          {/* Items Table */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Invoice Items
-            </label>
-            <div className="overflow-x-auto border border-border rounded-lg">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-muted">
-                    <th className="text-left py-3 px-3 text-sm font-medium text-muted-foreground">
-                      #
-                    </th>
-                    <th className="text-left py-3 px-3 text-sm font-medium text-muted-foreground">
-                      Description
-                    </th>
-                    <th className="text-center py-3 px-3 text-sm font-medium text-muted-foreground w-24">
-                      Qty
-                    </th>
-                    <th className="text-right py-3 px-3 text-sm font-medium text-muted-foreground w-36">
-                      Unit Price
-                    </th>
-                    <th className="text-right py-3 px-3 text-sm font-medium text-muted-foreground w-36">
-                      Total
-                    </th>
-                    <th className="w-10"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoiceItems.map((item, index) => (
-                    <tr key={item.id} className="border-t border-border">
-                      <td className="py-2 px-3 text-sm text-muted-foreground">{index + 1}</td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          placeholder="Item description"
-                          className="w-full px-2 py-1.5 border border-border rounded bg-background text-sm"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="number"
-                          defaultValue={1}
-                          min={1}
-                          className="w-full px-2 py-1.5 border border-border rounded bg-background text-sm text-center"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          placeholder="0"
-                          className="w-full px-2 py-1.5 border border-border rounded bg-background text-sm text-right"
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-sm text-foreground text-right font-medium">
-                        Rp 0
-                      </td>
-                      <td className="py-2 px-3">
-                        <button className="p-1 hover:bg-muted rounded text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <button
-              onClick={addItem}
-              className="mt-2 text-sm text-primary hover:underline flex items-center gap-1"
-            >
-              <Plus className="w-4 h-4" /> Add Item
-            </button>
-          </div>
+            {/* --- FORM CREATE INVOICE --- */}
+            <Card className="shadow-sm border-input">
+                <CardHeader>
+                    <CardTitle>Create Invoice</CardTitle>
+                    <CardDescription>Enter invoice details (Integrated with Accurate Online)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-6">
+                        
+                        {/* Section Pelanggan & Info Dasar */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div className="relative z-20"> {/* Tambahkan z-index agar dropdown customer muncul di atas elemen lain */}
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Customer <span className="text-red-500">*</span>
+                                    </label>
+                                    <AsyncSelect 
+                                        apiEndpoint={`${API_BASE_URL}/invoice_customer.php`} 
+                                        placeholder="Cari Pelanggan..." 
+                                        value={customerNo} displayName={customerName}
+                                        onChange={(val, label) => { setCustomerNo(val); setCustomerName(label); }} 
+                                    />
+                                    <p className="text-[10px] text-muted-foreground mt-1">*Ketik nama pelanggan untuk mencari</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Invoice Number
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Auto-generated by System"
+                                        disabled
+                                        className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm cursor-not-allowed opacity-70"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-foreground mb-2">
+                                            Invoice Date
+                                        </label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant={"outline"}
+                                                    className={cn(
+                                                        "w-full justify-start text-left font-normal border-input",
+                                                        !transDate && "text-muted-foreground"
+                                                    )}
+                                                >
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {transDate ? format(transDate, "PPP") : <span>Pick a date</span>}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0">
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={transDate}
+                                                    onSelect={(d) => d && setTransDate(d)}
+                                                    initialFocus
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-foreground mb-2">
+                                            Tax Type
+                                        </label>
+                                        <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                                            PPN 12% (Auto)
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-2">
+                                        Notes
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        placeholder="Keterangan tambahan..."
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
-          {/* Totals */}
-          <div className="flex justify-end">
-            <div className="w-full max-w-xs space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="text-foreground font-medium">Rp 0</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Tax (11%)</span>
-                <span className="text-foreground font-medium">Rp 0</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
-                <span className="text-foreground">Total</span>
-                <span className="text-primary">Rp 0</span>
-              </div>
-            </div>
-          </div>
+                        {/* Section Items Table */}
+                        <div className="relative z-10"> {/* Container Table */}
+                            <label className="block text-sm font-medium text-foreground mb-2">
+                                Invoice Items <span className="text-red-500">*</span>
+                            </label>
+                            <div className="rounded-lg border border-input bg-card text-card-foreground shadow-sm overflow-visible"> {/* overflow-visible PENTING agar dropdown tidak terpotong */}
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-muted text-muted-foreground font-medium">
+                                        <tr>
+                                            <th className="px-3 py-3 w-10 text-center">#</th>
+                                            <th className="px-3 py-3">Description / Item</th>
+                                            <th className="px-3 py-3 w-24 text-center">Qty</th>
+                                            <th className="px-3 py-3 w-40 text-right">Price</th>
+                                            <th className="px-3 py-3 w-40 text-right">Total</th>
+                                            <th className="px-3 py-3 w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {items.map((item, index) => (
+                                            <tr key={item.id} className="hover:bg-muted/50 transition-colors">
+                                                <td className="px-3 py-2 text-center align-top pt-3 text-muted-foreground">{index + 1}</td>
+                                                <td className="px-3 py-2 align-top pt-2 relative">
+                                                    {/* ASYNC SELECT DI DALAM TABEL */}
+                                                    <AsyncSelect 
+                                                        apiEndpoint={`${API_BASE_URL}/invoice_item.php`} 
+                                                        placeholder="Cari Item..." 
+                                                        value={item.itemNo} displayName={item.itemName}
+                                                        onChange={(val, label, obj) => { 
+                                                            updateItem(item.id, 'itemNo', val); 
+                                                            updateItem(item.id, 'itemName', label);
+                                                            if (obj) updateItem(item.id, 'price', obj.price); 
+                                                        }} 
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-2 align-top pt-2">
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        value={item.qty}
+                                                        onChange={(e) => updateItem(item.id, 'qty', parseFloat(e.target.value) || 0)}
+                                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-2 align-top pt-2">
+                                                    <input
+                                                        type="number"
+                                                        value={item.price}
+                                                        onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-medium align-top pt-4">
+                                                    Rp {(item.qty * item.price).toLocaleString('id-ID')}
+                                                </td>
+                                                <td className="px-3 py-2 align-top pt-3 text-center">
+                                                    <button 
+                                                        onClick={() => deleteItem(item.id)}
+                                                        className="p-1 hover:bg-destructive/10 text-destructive rounded transition-colors disabled:opacity-50"
+                                                        disabled={items.length <= 1}
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button
+                                onClick={addItem}
+                                className="mt-3 text-sm text-primary hover:underline flex items-center gap-1 font-medium"
+                            >
+                                <Plus className="w-4 h-4" /> Add New Item Line
+                            </button>
+                        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3">
-            <button className="px-6 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted transition-colors">
-              Save as Draft
-            </button>
-            <button className="btn-gradient">Create Invoice</button>
-          </div>
+                        {/* Totals */}
+                        <div className="flex justify-end pt-4">
+                            <div className="w-full max-w-xs space-y-2 bg-muted/30 p-4 rounded-lg">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Subtotal</span>
+                                    <span className="text-foreground font-medium">Rp {subTotal.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Tax (11%)</span>
+                                    <span className="text-foreground font-medium">Rp {taxTotal.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
+                                    <span className="text-foreground">Total</span>
+                                    <span className="text-primary">Rp {grandTotal.toLocaleString('id-ID')}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                            <Button variant="outline">
+                                Save as Draft
+                            </Button>
+                            <Button onClick={handleSubmit} disabled={loading} className="min-w-[140px]">
+                                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                                {loading ? "Memproses..." : "Create Invoice"}
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* List Invoice (Placeholder) */}
+            <Card className="shadow-sm">
+                <CardHeader>
+                    <CardTitle>Invoice List</CardTitle>
+                    <CardDescription>Recent invoices history</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-muted-foreground bg-muted font-medium">
+                                <tr>
+                                    <th className="px-4 py-3">Invoice #</th>
+                                    <th className="px-4 py-3">Customer</th>
+                                    <th className="px-4 py-3 hidden md:table-cell">Date</th>
+                                    <th className="px-4 py-3 text-right">Total</th>
+                                    <th className="px-4 py-3 text-center">Status</th>
+                                    <th className="px-4 py-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {mockInvoices.map((inv) => (
+                                    <tr key={inv.id} className="hover:bg-muted/50 transition-colors">
+                                        <td className="px-4 py-3 font-medium text-primary">{inv.id}</td>
+                                        <td className="px-4 py-3">{inv.customer}</td>
+                                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{inv.date}</td>
+                                        <td className="px-4 py-3 text-right font-medium">{inv.total}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(inv.status)}`}>
+                                                {inv.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <button className="p-1 hover:bg-muted rounded">
+                                                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem><Eye className="w-4 h-4 mr-2" /> View</DropdownMenuItem>
+                                                    <DropdownMenuItem><Printer className="w-4 h-4 mr-2" /> Print</DropdownMenuItem>
+                                                    <DropdownMenuItem><Edit className="w-4 h-4 mr-2" /> Edit</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
-      </CardWithHeader>
-
-      {/* Invoice List */}
-      <CardWithHeader title="Invoice List" subtitle="All sales invoices">
-        <div className="overflow-x-auto">
-          <table className="w-full table-striped table-hover">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-3 text-sm font-medium text-muted-foreground">
-                  Invoice #
-                </th>
-                <th className="text-left py-3 px-3 text-sm font-medium text-muted-foreground">
-                  Customer
-                </th>
-                <th className="text-left py-3 px-3 text-sm font-medium text-muted-foreground hidden md:table-cell">
-                  Date
-                </th>
-                <th className="text-left py-3 px-3 text-sm font-medium text-muted-foreground hidden lg:table-cell">
-                  Due Date
-                </th>
-                <th className="text-right py-3 px-3 text-sm font-medium text-muted-foreground">
-                  Total
-                </th>
-                <th className="text-center py-3 px-3 text-sm font-medium text-muted-foreground">
-                  Status
-                </th>
-                <th className="text-center py-3 px-3 text-sm font-medium text-muted-foreground">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInvoices.map((inv) => (
-                <tr key={inv.id} className="border-b border-border/50">
-                  <td className="py-3 px-3 text-sm font-medium text-primary">{inv.id}</td>
-                  <td className="py-3 px-3 text-sm text-foreground">{inv.customer}</td>
-                  <td className="py-3 px-3 text-sm text-muted-foreground hidden md:table-cell">
-                    {inv.date}
-                  </td>
-                  <td className="py-3 px-3 text-sm text-muted-foreground hidden lg:table-cell">
-                    {inv.dueDate}
-                  </td>
-                  <td className="py-3 px-3 text-sm text-foreground text-right font-medium">
-                    {inv.total}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(
-                        inv.status
-                      )}`}
-                    >
-                      {inv.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="p-1 hover:bg-muted rounded">
-                          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Eye className="w-4 h-4 mr-2" /> View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Printer className="w-4 h-4 mr-2" /> Print
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Send className="w-4 h-4 mr-2" /> Send
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Edit className="w-4 h-4 mr-2" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          <Trash2 className="w-4 h-4 mr-2" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardWithHeader>
-    </div>
-  );
+    );
 };
 
 export default InvoicePage;

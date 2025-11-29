@@ -5,14 +5,16 @@ import {
   Filter, 
   Trash2, 
   MoreHorizontal, 
-  Eye, 
+  Eye, // Icon Mata untuk View
   Edit, 
   Loader2, 
   CalendarIcon, 
   X,
   Check,
   ChevronsUpDown,
-  Save
+  Save,
+  RefreshCcw, // Icon Refresh
+  FileText // Icon Detail di Modal
 } from "lucide-react";
 import { 
   Card, 
@@ -21,12 +23,6 @@ import {
   CardTitle, 
   CardDescription 
 } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar"; 
 import { Button } from "@/components/ui/button";
@@ -34,11 +30,11 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-// --- KONFIGURASI API (DARI KODE 2) ---
-const API_BASE_URL = "https://technokingindonesia.com/projekmagank/accurate-integration-project";
+// --- KONFIGURASI API ---
+const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
 const TIMEOUT_MS = 6000;
 
-// --- TYPE DEFINITIONS (DARI KODE 2) ---
+// --- TYPE DEFINITIONS ---
 interface Customer {
   id: number;
   name: string;
@@ -50,7 +46,7 @@ interface Item {
   name: string;
   no: string; 
   unitName?: string; 
-  itemType: string;
+  itemType: string; 
 }
 
 interface LineItem {
@@ -60,7 +56,28 @@ interface LineItem {
   quantity: number;
 }
 
-// --- COMPONENT ASYNC SELECT (REUSABLE UI) ---
+interface JobOrderData {
+    id: number;
+    number: string;
+    transDate: string;
+    customerName: string;
+    description: string;
+    amount: number;
+    status: string;
+}
+
+// [BARU] Interface untuk Detail Modal
+interface JobOrderDetail extends JobOrderData {
+    customer: { customerNo: string; name: string };
+    detailItem: {
+        item: { no: string; name: string };
+        quantity: number;
+        itemUnit?: { name: string };
+    }[];
+}
+
+
+// --- COMPONENT ASYNC SELECT ---
 interface AsyncSelectProps {
     value: string;
     displayName?: string;
@@ -146,13 +163,6 @@ const AsyncSelect: React.FC<AsyncSelectProps> = ({ value, displayName, onChange,
     );
 };
 
-// --- STATIC DATA FOR UI PLACEHOLDER (KODE 1) ---
-const mockJobOrders = [
-  { id: "JO-2024-001", customer: "PT Maju Jaya", description: "Website Development Project", value: "Rp 150.000.000", status: "In Progress", progress: 65 },
-  { id: "JO-2024-002", customer: "CV Sukses Mandiri", description: "ERP Implementation", value: "Rp 450.000.000", status: "In Progress", progress: 30 },
-  { id: "JO-2024-003", customer: "PT Sentosa Abadi", description: "Network Infrastructure Setup", value: "Rp 85.000.000", status: "Completed", progress: 100 },
-];
-
 // --- MAIN PAGE COMPONENT ---
 export function JobOrderPage() {
     // --- STATE & LOGIC (KODE 2) ---
@@ -161,6 +171,15 @@ export function JobOrderPage() {
     const [items, setItems] = useState<Item[]>([]);
     const [loadingData, setLoadingData] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    // List Data State (Real Data)
+    const [jobOrderList, setJobOrderList] = useState<JobOrderData[]>([]);
+    const [loadingList, setLoadingList] = useState(false);
+    
+    // [TAMBAHAN] State Detail Modal
+    const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+    const [detailData, setDetailData] = useState<JobOrderDetail | null>(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
 
     // Form state
     const [transDate, setTransDate] = useState<Date>(new Date());
@@ -173,7 +192,7 @@ export function JobOrderPage() {
     // Search/Filter State
     const [searchTerm, setSearchTerm] = useState("");
 
-    // --- FETCH MASTER DATA LOGIC (KODE 2) ---
+    // --- FETCH MASTER DATA LOGIC (KODE 2 - DIJAMIN UTUH) ---
     const fetchMasterData = async (endpoint: string) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -216,8 +235,8 @@ export function JobOrderPage() {
     const loadMasterData = async () => {
         setLoadingData(true);
         const [customersData, itemsData] = await Promise.all([
-            fetchMasterData('master_customer.php'),
-            fetchMasterData('master_item.php'),
+            fetchMasterData('/JobOrder/MasterCustomer.php'),
+            fetchMasterData('/JobOrder/MasterItem.php'),
         ]);
 
         const validCustomers: Customer[] = customersData.map((c: any) => ({
@@ -234,9 +253,71 @@ export function JobOrderPage() {
         setLoadingData(false);
     };
 
+    // [BARU] Function untuk mengambil data List Job Order
+    const fetchJobOrderList = async (keyword = "") => {
+        setLoadingList(true);
+        try {
+            const url = new URL(`${API_BASE_URL}/JobOrder/List.php`);
+            if (keyword) url.searchParams.append("q", keyword);
+
+            const res = await fetch(url.toString());
+            const json = await res.json();
+
+            if (json.s === true && Array.isArray(json.d)) {
+                setJobOrderList(json.d);
+            } else {
+                setJobOrderList([]);
+            }
+        } catch (error) {
+            console.error("Gagal mengambil list job order", error);
+            toast({ title: "Connection Error", description: "Gagal memuat daftar Job Order.", variant: "destructive" });
+        } finally {
+            setLoadingList(false);
+        }
+    };
+
+    // [BARU] Fetch Detail Job Order
+    const fetchJobOrderDetail = async (id: number) => {
+        setLoadingDetail(true);
+        setDetailData(null);
+        try {
+            const res = await fetch(`${API_BASE_URL}/JobOrder/Detail.php?id=${id}`);
+            const json = await res.json();
+            if (json.s === true) {
+                setDetailData(json.d);
+            } else {
+                toast({ title: "Gagal", description: "Gagal memuat detail.", variant: "destructive" });
+                setSelectedJobId(null);
+            }
+        } catch (error) {
+            toast({ title: "Error", description: "Terjadi kesalahan koneksi.", variant: "destructive" });
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
+
+
+    // --- EFFECTS ---
     useEffect(() => {
         loadMasterData();
+        fetchJobOrderList(); // [BARU] Load list saat pertama kali
     }, []);
+
+    // [BARU] Debounce Search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchJobOrderList(searchTerm);
+        }, 600);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // [BARU] Trigger Fetch Detail saat ID berubah
+    useEffect(() => {
+        if (selectedJobId) {
+            fetchJobOrderDetail(selectedJobId);
+        }
+    }, [selectedJobId]);
+
 
     // --- ITEM LOGIC (KODE 2) ---
     const addLineItem = () => {
@@ -307,7 +388,7 @@ export function JobOrderPage() {
                 detailItem: detailItemsToSend,
             };
 
-            const response = await fetch(`${API_BASE_URL}/transaksi_job_order.php`, {
+            const response = await fetch(`${API_BASE_URL}/JobOrder/Transaksi.php`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -328,6 +409,9 @@ export function JobOrderPage() {
                 setLineItems([]);
                 setTransDate(new Date());
                 addLineItem();
+                
+                // [BARU] Refresh List setelah simpan
+                fetchJobOrderList();
             } else {
                 const errorMessage = result.d && Array.isArray(result.d) ? result.d.join('; ') : "Failed to save job order.";
                 toast({ title: "Error", description: errorMessage, variant: "destructive" });
@@ -344,8 +428,124 @@ export function JobOrderPage() {
     const itemOptions = items.filter(i => i.itemType === 'INVENTORY').map(i => ({ value: i.no, label: `${i.name}` }));
 
     return (
-        <div className="space-y-6 p-6">
-            {/* Page Header (KODE 1) */}
+        <div className="space-y-6 p-6 relative">
+            
+            {/* --- MODAL DETAIL (OVERLAY) --- */}
+            {selectedJobId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                        
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-primary" /> 
+                                    Detail Job Order
+                                </h3>
+                                <p className="text-xs text-gray-500">Informasi lengkap transaksi</p>
+                            </div>
+                            <button onClick={() => setSelectedJobId(null)} className="p-1 hover:bg-gray-200 rounded-full transition-colors">
+                                <X className="w-6 h-6 text-gray-500" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 overflow-y-auto flex-1">
+                            {loadingDetail ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+                                    <p className="text-sm text-gray-500">Mengambil data dari Accurate...</p>
+                                </div>
+                            ) : detailData ? (
+                                <div className="space-y-6">
+                                    
+                                    {/* Informasi Utama Grid */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                                        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                                            <span className="block text-xs text-blue-600 font-semibold uppercase tracking-wider">No Transaksi</span>
+                                            <span className="block text-lg font-bold text-gray-900 mt-1">{detailData.number}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                                            <span className="block text-xs text-gray-500 uppercase tracking-wider">Tanggal</span>
+                                            <span className="block font-medium text-gray-900 mt-1">{detailData.transDate}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                                            <span className="block text-xs text-gray-500 uppercase tracking-wider">Status</span>
+                                            <span className={cn(
+                                                "inline-block px-2 py-0.5 rounded text-xs font-bold mt-1 uppercase",
+                                                detailData.status === 'In Process' ? "bg-blue-100 text-blue-700" : 
+                                                detailData.status === 'Closed' ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-700"
+                                            )}>
+                                                {detailData.status}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-b py-4 border-dashed">
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-gray-500 mb-1">Pelanggan</h4>
+                                                <p className="text-gray-900 font-medium text-base">{detailData.customer?.name}</p>
+                                                <p className="text-xs text-gray-400 font-mono">{detailData.customer?.customerNo}</p>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-gray-500 mb-1">Keterangan Proyek</h4>
+                                                <p className="text-gray-900 italic text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                                                    {detailData.description || "-"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Tabel Rincian Barang */}
+                                    <div>
+                                        <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                            <Check className="w-4 h-4 text-green-600"/> Rincian Barang / Material
+                                        </h4>
+                                        <div className="border rounded-lg overflow-hidden shadow-sm">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-gray-100/80 text-gray-600 font-medium border-b">
+                                                    <tr>
+                                                        <th className="px-4 py-2 text-left w-10">#</th>
+                                                        <th className="px-4 py-2 text-left">Nama Barang</th>
+                                                        <th className="px-4 py-2 text-center w-24">Qty</th>
+                                                        <th className="px-4 py-2 text-left w-24">Satuan</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y bg-white">
+                                                    {detailData.detailItem?.map((item: any, idx: number) => (
+                                                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-4 py-3 text-gray-500 text-center">{idx + 1}</td>
+                                                            <td className="px-4 py-3 font-medium text-gray-800">
+                                                                {item.item?.name}
+                                                                <span className="block text-xs text-gray-400 mt-0.5">{item.item?.no}</span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center font-bold bg-gray-50/50">{item.quantity}</td>
+                                                            <td className="px-4 py-3 text-gray-500">{item.itemUnit?.name || 'PCS'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-muted-foreground bg-gray-50 rounded-lg border border-dashed">
+                                    Data detail tidak ditemukan atau gagal dimuat.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 border-t bg-gray-50 flex justify-end">
+                            <Button onClick={() => setSelectedJobId(null)} variant="outline">Tutup</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Job Order</h1>
@@ -359,7 +559,7 @@ export function JobOrderPage() {
                 </Button>
             </div>
 
-            {/* Filters & Search (KODE 1) */}
+            {/* Filters & Search */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -377,7 +577,7 @@ export function JobOrderPage() {
                 </Button>
             </div>
 
-            {/* FORM CARD (KODE 1 UI + KODE 2 LOGIC) */}
+            {/* FORM CARD */}
             <Card className="shadow-sm border-input">
                 <CardHeader>
                     <CardTitle>Create Job Order</CardTitle>
@@ -385,7 +585,6 @@ export function JobOrderPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Left Column */}
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-foreground mb-2">
@@ -429,7 +628,6 @@ export function JobOrderPage() {
                             </div>
                         </div>
 
-                        {/* Right Column */}
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-foreground mb-2">
@@ -459,7 +657,6 @@ export function JobOrderPage() {
                                 </Popover>
                             </div>
                             
-                            {/* ITEM TABLE (Line Items) */}
                             <div className="mt-4 relative z-10">
                                 <label className="block text-sm font-medium text-foreground mb-2">
                                     Materials / Items <span className="text-red-500">*</span>
@@ -533,18 +730,26 @@ export function JobOrderPage() {
                 </CardContent>
             </Card>
 
-            {/* JOB ORDER LIST (PLACEHOLDER DARI KODE 1) */}
-            <Card className="shadow-sm">
-                <CardHeader>
-                    <CardTitle>Job Order List</CardTitle>
-                    <CardDescription>Recent job orders (Mock Data)</CardDescription>
+            {/* List Job Order Real Data */}
+            <Card className="shadow-sm border-0">
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Job Order List (Live)</CardTitle>
+                        <CardDescription>50 data terbaru dari Accurate</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => fetchJobOrderList()} disabled={loadingList}>
+                        <RefreshCcw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} /> Refresh
+                    </Button>
                 </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto rounded-lg border">
                         <table className="w-full text-sm text-left">
-                            <thead className="text-muted-foreground bg-muted font-medium">
+                            <thead className="bg-muted text-muted-foreground font-semibold uppercase text-xs tracking-wider">
                                 <tr>
+                                    {/* KOLOM NOMOR URUT */}
+                                    <th className="px-4 py-3 w-10 text-center">No.</th>
                                     <th className="px-4 py-3">JO Number</th>
+                                    <th className="px-4 py-3">Date</th>
                                     <th className="px-4 py-3">Customer</th>
                                     <th className="px-4 py-3 hidden md:table-cell">Description</th>
                                     <th className="px-4 py-3 text-right">Value</th>
@@ -552,40 +757,43 @@ export function JobOrderPage() {
                                     <th className="px-4 py-3 text-center">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border">
-                                {mockJobOrders.map((order) => (
-                                    <tr key={order.id} className="hover:bg-muted/50">
-                                        <td className="px-4 py-3 font-medium text-primary">{order.id}</td>
-                                        <td className="px-4 py-3">{order.customer}</td>
-                                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{order.description}</td>
-                                        <td className="px-4 py-3 text-right font-medium">{order.value}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-full bg-muted rounded-full h-2 min-w-[60px]">
-                                                    <div
-                                                        className="h-2 rounded-full bg-primary"
-                                                        style={{ width: `${order.progress}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-xs text-muted-foreground w-8">{order.progress}%</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <button className="p-1 hover:bg-muted rounded">
-                                                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                                                    </button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem><Eye className="w-4 h-4 mr-2" /> View</DropdownMenuItem>
-                                                    <DropdownMenuItem><Edit className="w-4 h-4 mr-2" /> Edit</DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </td>
-                                    </tr>
-                                ))}
+                            <tbody className="divide-y divide-border bg-card">
+                                {loadingList ? (<tr><td colSpan={8} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading Data...</td></tr>) : jobOrderList.length === 0 ? (<tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Tidak ada data.</td></tr>) : (
+                                    jobOrderList.map((order, index) => (
+                                        <tr key={order.id} className="hover:bg-muted/30 transition-colors">
+                                            {/* NOMOR URUT */}
+                                            <td className="px-4 py-3 text-center text-muted-foreground">{index + 1}</td>
+                                            
+                                            <td className="px-4 py-3 font-medium text-primary">{order.number}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">{order.transDate}</td>
+                                            <td className="px-4 py-3">{order.customerName}</td>
+                                            <td className="px-4 py-3 text-muted-foreground hidden md:table-cell truncate max-w-xs">{order.description}</td>
+                                            <td className="px-4 py-3 text-right font-medium">{order.amount > 0 ? `Rp ${order.amount.toLocaleString('id-ID')}` : '-'}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={cn(
+                                                    "px-2 py-1 rounded-full text-xs font-bold",
+                                                    order.status === 'In Process' ? "bg-blue-100 text-blue-700" :
+                                                    order.status === 'Closed' ? "bg-green-100 text-green-700" :
+                                                    "bg-gray-100 text-gray-700"
+                                                )}>
+                                                    {order.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                {/* ACTION VIEW DETAIL (HANYA INI YANG TERSISA) */}
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    onClick={() => setSelectedJobId(order.id)} 
+                                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                    title="Lihat Detail"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -594,5 +802,3 @@ export function JobOrderPage() {
         </div>
     );
 };
-
-export default JobOrderPage;

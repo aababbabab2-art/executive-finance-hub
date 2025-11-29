@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 // --- KONFIGURASI API (DARI KODE 2) ---
-const API_BASE_URL = "https://technokingindonesia.com/projekmagank/accurate-integration-project";
+const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
 
 // --- COMPONENT ASYNC SELECT (REUSABLE UI KODE 1 STYLE) ---
 interface AsyncSelectProps {
@@ -183,7 +183,7 @@ export function PelunasanPage() {
         if (!customerNo) { setInvoices([]); return; }
         
         setLoadingInv(true);
-        let url = `${API_BASE_URL}/master_invoice.php?customerNo=${customerNo}`;
+        let url = `${API_BASE_URL}/Pelunasan/MasterInvoice.php?customerNo=${customerNo}`;
         if (debouncedSearch) {
             url += `&q=${debouncedSearch}`;
         }
@@ -233,7 +233,7 @@ export function PelunasanPage() {
                 invoices: invoices.filter(inv => inv.payAmount > 0).map(inv => ({ invoiceId: inv.id, payAmount: inv.payAmount }))
             };
 
-            const res = await fetch(`${API_BASE_URL}/transaksi_pelunasan.php`, {
+            const res = await fetch(`${API_BASE_URL}/Pelunasan/Transaksi.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
             const json = await res.json();
@@ -335,7 +335,7 @@ export function PelunasanPage() {
                                     Customer <span className="text-red-500">*</span>
                                 </label>
                                 <AsyncSelect 
-                                    apiEndpoint={`${API_BASE_URL}/master_customer.php`}
+                                    apiEndpoint={`${API_BASE_URL}/Pelunasan/MasterCustomer.php`}
                                     placeholder="Select customer..."
                                     value={customerName} displayName={customerName}
                                     onChange={(val, name) => { setCustomerNo(val); setCustomerName(name); }}
@@ -346,7 +346,7 @@ export function PelunasanPage() {
                                     Bank / Cash Account <span className="text-red-500">*</span>
                                 </label>
                                 <AsyncSelect 
-                                    apiEndpoint={`${API_BASE_URL}/master_glaccount.php`}
+                                    apiEndpoint={`${API_BASE_URL}/Pelunasan/MasterGlAccount.php`}
                                     placeholder="Select bank account..."
                                     value={bankName} displayName={bankName}
                                     filterType="CASH_BANK"

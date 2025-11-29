@@ -4,16 +4,16 @@ import {
   Plus, 
   Filter, 
   Trash2, 
-  MoreHorizontal, 
   Eye, 
-  Edit, 
   Loader2, 
   CalendarIcon, 
   X,
   Check,
   ChevronsUpDown,
   ArrowRight,
-  ArrowRightLeft
+  ArrowRightLeft,
+  RefreshCcw,
+  FileText 
 } from "lucide-react";
 import { 
   Card, 
@@ -22,12 +22,6 @@ import {
   CardTitle, 
   CardDescription 
 } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar"; 
 import { Button } from "@/components/ui/button";
@@ -37,10 +31,29 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-// --- KONFIGURASI API (DARI KODE 2) ---
-const API_BASE_URL = "https://technokingindonesia.com/projekmagank/accurate-integration-project";
+// --- KONFIGURASI API ---
+const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
 
-// --- COMPONENT ASYNC SELECT (REUSED) ---
+// --- INTERFACES ---
+interface TransferData {
+    id: number;
+    number: string;
+    transDate: string;
+    description: string;
+    amount: number;
+    status: string;
+    fromBankName: string;
+    toBankName: string;
+}
+
+// Interface Detail untuk Modal (Updated: Handle variasi nama field API)
+interface TransferDetail extends TransferData {
+    fromBank: { no: string; name: string };
+    toBank: { no: string; name: string };
+    fromBankAmount?: number; // Accurate sering pakai nama ini di detail
+}
+
+// --- COMPONENT ASYNC SELECT ---
 interface AsyncSelectProps {
     value: string;
     displayName?: string;
@@ -139,23 +152,11 @@ const AsyncAccountSelect: React.FC<AsyncSelectProps> = ({
     );
 };
 
-// --- DATA MOCK UI (PLACEHOLDER DARI KODE 1) ---
-const mockHistory = [
-  { id: "TRF-2024-001", fromAccount: "BCA - 1234567890", toAccount: "Mandiri - 0987654321", amount: "Rp 50.000.000", date: "2024-01-28", description: "Operational fund transfer", status: "Completed" },
-  { id: "TRF-2024-002", fromAccount: "Mandiri - 0987654321", toAccount: "BRI - 5432167890", amount: "Rp 25.000.000", date: "2024-01-25", description: "Payroll fund allocation", status: "Completed" },
-  { id: "TRF-2024-003", fromAccount: "BCA - 1234567890", toAccount: "BRI - 5432167890", amount: "Rp 100.000.000", date: "2024-01-22", description: "Project fund transfer", status: "Completed" },
-];
-
-const bankAccounts = [
-  { id: "bca", name: "BCA", number: "1234567890", balance: "Rp 850.000.000" },
-  { id: "mandiri", name: "Mandiri", number: "0987654321", balance: "Rp 425.000.000" },
-  { id: "bri", name: "BRI", number: "5432167890", balance: "Rp 175.000.000" },
-];
-
 // --- MAIN PAGE COMPONENT ---
 export function TransferPage() {
-    // --- STATE & LOGIC (DARI KODE 2) ---
     const { toast } = useToast();
+    
+    // State Form
     const [transDate, setTransDate] = useState<Date>(new Date());
     const [fromBankId, setFromBankId] = useState<number | null>(null);
     const [fromBankName, setFromBankName] = useState("");
@@ -165,8 +166,72 @@ export function TransferPage() {
     const [description, setDescription] = useState("");
     const [saving, setSaving] = useState(false);
     
-    // UI State
+    // State List Data Real
+    const [transferList, setTransferList] = useState<TransferData[]>([]);
+    const [loadingList, setLoadingList] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+
+    // State Detail Modal
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [detailData, setDetailData] = useState<TransferDetail | null>(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+
+    // Fetch List Transfer
+    const fetchTransferList = async (keyword = "") => {
+        setLoadingList(true);
+        try {
+            const url = new URL(`${API_BASE_URL}/Transfer/List.php`);
+            if (keyword) url.searchParams.append("q", keyword);
+            const res = await fetch(url.toString());
+            const json = await res.json();
+            if (json.s === true && Array.isArray(json.d)) {
+                setTransferList(json.d);
+            } else {
+                setTransferList([]);
+            }
+        } catch (error) {
+            toast({ title: "Connection Error", description: "Gagal memuat daftar transfer.", variant: "destructive" });
+        } finally {
+            setLoadingList(false);
+        }
+    };
+
+    // Fetch Detail Transfer
+    const fetchTransferDetail = async (id: number) => {
+        setLoadingDetail(true);
+        setDetailData(null);
+        try {
+            const res = await fetch(`${API_BASE_URL}/Transfer/Detail.php?id=${id}`);
+            const json = await res.json();
+            if (json.s === true) {
+                setDetailData(json.d);
+            } else {
+                toast({ title: "Gagal", description: "Gagal memuat detail.", variant: "destructive" });
+                setSelectedId(null);
+            }
+        } catch (error) {
+            toast({ title: "Error", description: "Terjadi kesalahan koneksi.", variant: "destructive" });
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
+
+    // Initial Load & Search
+    useEffect(() => {
+        fetchTransferList();
+    }, []);
+
+    useEffect(() => {
+        const timer = setTimeout(() => { fetchTransferList(searchTerm); }, 600);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // Trigger Fetch Detail
+    useEffect(() => {
+        if (selectedId) {
+            fetchTransferDetail(selectedId);
+        }
+    }, [selectedId]);
 
     const handleSubmit = async () => {
         if (!fromBankId || !toBankId) return toast({ title: "Error", description: "Pilih Bank Asal dan Tujuan.", variant: "destructive" });
@@ -183,7 +248,7 @@ export function TransferPage() {
                 description: description || "Transfer Antar Bank"
             };
 
-            const res = await fetch(`${API_BASE_URL}/transaksi_transfer.php`, {
+            const res = await fetch(`${API_BASE_URL}/Transfer/Transaksi.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
             const json = await res.json();
@@ -192,6 +257,7 @@ export function TransferPage() {
                 toast({ title: "Sukses!", description: `Bukti Transfer: ${json.d?.r?.number || 'Tersimpan'}`, className: "bg-green-600 text-white" });
                 setAmount(0);
                 setDescription("");
+                fetchTransferList(); // Refresh List
             } else {
                 throw new Error(JSON.stringify(json.d));
             }
@@ -202,8 +268,105 @@ export function TransferPage() {
         }
     };
 
+    const getStatusBadge = (status: string) => {
+        const s = (status || "").toUpperCase();
+        if (s === "APPROVED") return "bg-green-100 text-green-700";
+        if (s === "REJECTED") return "bg-red-100 text-red-700";
+        return "bg-yellow-100 text-yellow-700"; 
+    };
+
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6 relative">
+            
+            {/* --- MODAL DETAIL (OVERLAY) --- */}
+            {selectedId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                        
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-primary" /> 
+                                    Detail Transfer
+                                </h3>
+                                <p className="text-xs text-gray-500">Rincian pemindahan dana</p>
+                            </div>
+                            <button onClick={() => setSelectedId(null)} className="p-1 hover:bg-gray-200 rounded-full transition-colors">
+                                <X className="w-6 h-6 text-gray-500" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 overflow-y-auto flex-1">
+                            {loadingDetail ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+                                    <p className="text-sm text-gray-500">Mengambil data dari Accurate...</p>
+                                </div>
+                            ) : detailData ? (
+                                <div className="space-y-6">
+                                    
+                                    {/* Info Utama Grid */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                                        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                                            <span className="block text-xs text-blue-600 font-semibold uppercase tracking-wider">No Transaksi</span>
+                                            <span className="block text-lg font-bold text-gray-900 mt-1">{detailData.number}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                                            <span className="block text-xs text-gray-500 uppercase tracking-wider">Tanggal</span>
+                                            <span className="block font-medium text-gray-900 mt-1">{detailData.transDate}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                                            <span className="block text-xs text-gray-500 uppercase tracking-wider">Nominal</span>
+                                            {/* FIX: Handle nama field yang bervariasi (amount / fromBankAmount) */}
+                                            <span className="block font-bold text-indigo-600 mt-1">
+                                                Rp {(detailData.amount || detailData.fromBankAmount || 0).toLocaleString('id-ID')}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-b py-6 border-dashed">
+                                        <div className="flex items-center justify-between px-4">
+                                            <div className="flex-1">
+                                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-1">Dari (Sumber)</h4>
+                                                <p className="text-gray-900 font-bold text-lg">{detailData.fromBank?.name}</p>
+                                                <p className="text-sm text-gray-500 font-mono">{detailData.fromBank?.no}</p>
+                                            </div>
+                                            <div className="px-6">
+                                                <ArrowRight className="w-8 h-8 text-gray-300" />
+                                            </div>
+                                            <div className="flex-1 text-right">
+                                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-1">Ke (Tujuan)</h4>
+                                                <p className="text-gray-900 font-bold text-lg">{detailData.toBank?.name}</p>
+                                                <p className="text-sm text-gray-500 font-mono">{detailData.toBank?.no}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h4 className="text-sm font-semibold text-gray-500 mb-1">Keterangan</h4>
+                                        <p className="text-gray-800 italic text-sm">
+                                            {detailData.description || "-"}
+                                        </p>
+                                    </div>
+
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-muted-foreground bg-gray-50 rounded-lg border border-dashed">
+                                    Data detail tidak ditemukan.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 border-t bg-gray-50 flex justify-end">
+                            <Button onClick={() => setSelectedId(null)} variant="outline">Tutup</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -216,27 +379,6 @@ export function TransferPage() {
                     <Plus className="w-4 h-4" />
                     New Transfer
                 </Button>
-            </div>
-
-            {/* Bank Account Cards (Visual Dummy KODE 1) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {bankAccounts.map((account) => (
-                    <Card key={account.id} className="shadow-sm">
-                        <CardContent className="p-4">
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                    <span className="text-primary font-bold text-sm">{account.name.slice(0, 2)}</span>
-                                </div>
-                                <div>
-                                    <p className="font-medium text-foreground">{account.name}</p>
-                                    <p className="text-xs text-muted-foreground">{account.number}</p>
-                                </div>
-                            </div>
-                            <p className="text-2xl font-bold text-foreground">{account.balance}</p>
-                            <p className="text-xs text-muted-foreground mt-1">Available Balance</p>
-                        </CardContent>
-                    </Card>
-                ))}
             </div>
 
             {/* Filters */}
@@ -273,7 +415,7 @@ export function TransferPage() {
                                         Source Account (Dari) <span className="text-red-500">*</span>
                                     </label>
                                     <AsyncAccountSelect 
-                                        apiEndpoint={`${API_BASE_URL}/master_glaccount.php`}
+                                        apiEndpoint={`${API_BASE_URL}/Transfer/MasterGlAccount.php`}
                                         placeholder="Select source bank..."
                                         value={fromBankName} displayName={fromBankName}
                                         filterType="CASH_BANK" 
@@ -286,7 +428,7 @@ export function TransferPage() {
                                         Destination Account (Ke) <span className="text-red-500">*</span>
                                     </label>
                                     <AsyncAccountSelect 
-                                        apiEndpoint={`${API_BASE_URL}/master_glaccount.php`}
+                                        apiEndpoint={`${API_BASE_URL}/Transfer/MasterGlAccount.php`}
                                         placeholder="Select destination bank..."
                                         value={toBankName} displayName={toBankName}
                                         filterType="CASH_BANK" 
@@ -352,17 +494,24 @@ export function TransferPage() {
                 </CardContent>
             </Card>
 
-            {/* Transfer History (Placeholder KODE 1) */}
+            {/* List Transfer (Real Data) */}
             <Card className="shadow-sm">
-                <CardHeader>
-                    <CardTitle>Transfer History</CardTitle>
-                    <CardDescription>All bank transfer records (Mock Data)</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Transfer History (Live)</CardTitle>
+                        <CardDescription>50 data terbaru dari Accurate</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => fetchTransferList()} disabled={loadingList}>
+                        <RefreshCcw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} /> Refresh
+                    </Button>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-muted text-muted-foreground font-medium">
                                 <tr>
+                                    {/* Kolom No */}
+                                    <th className="px-4 py-3 w-12 text-center">No</th>
                                     <th className="px-4 py-3">Transfer #</th>
                                     <th className="px-4 py-3">From / To</th>
                                     <th className="px-4 py-3 hidden lg:table-cell">Description</th>
@@ -373,40 +522,44 @@ export function TransferPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
-                                {mockHistory.map((item) => (
-                                    <tr key={item.id} className="hover:bg-muted/50 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-primary">{item.id}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2 text-sm">
-                                                <span className="text-muted-foreground">{item.fromAccount.split(" - ")[0]}</span>
-                                                <ArrowRight className="w-4 h-4 text-primary" />
-                                                <span className="text-foreground font-medium">{item.toAccount.split(" - ")[0]}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{item.description}</td>
-                                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{item.date}</td>
-                                        <td className="px-4 py-3 text-right font-medium text-foreground">{item.amount}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.status === "Completed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                                                {item.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <button className="p-1 hover:bg-muted rounded">
-                                                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                                                    </button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem><Eye className="w-4 h-4 mr-2" /> View</DropdownMenuItem>
-                                                    <DropdownMenuItem><Edit className="w-4 h-4 mr-2" /> Edit</DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {loadingList ? (
+                                    <tr><td colSpan={8} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading...</td></tr>
+                                ) : transferList.length === 0 ? (
+                                    <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Tidak ada data ditemukan.</td></tr>
+                                ) : (
+                                    transferList.map((item, idx) => (
+                                        <tr key={item.id} className="hover:bg-muted/50 transition-colors">
+                                            <td className="px-4 py-3 text-center text-muted-foreground">{idx + 1}</td>
+                                            <td className="px-4 py-3 font-medium text-primary">{item.number}</td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <span className="text-muted-foreground truncate max-w-[100px]" title={item.fromBankName}>{item.fromBankName}</span>
+                                                    <ArrowRight className="w-4 h-4 text-primary shrink-0" />
+                                                    <span className="text-foreground font-medium truncate max-w-[100px]" title={item.toBankName}>{item.toBankName}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell truncate max-w-xs">{item.description}</td>
+                                            <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{item.transDate}</td>
+                                            <td className="px-4 py-3 text-right font-medium text-foreground">{item.amount.toLocaleString('id-ID')}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(item.status)}`}>
+                                                    {item.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    onClick={() => setSelectedId(item.id)} 
+                                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                    title="Lihat Detail"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -414,6 +567,6 @@ export function TransferPage() {
             </Card>
         </div>
     );
-}
+};
 
 export default TransferPage;

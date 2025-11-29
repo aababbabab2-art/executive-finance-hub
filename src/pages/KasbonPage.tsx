@@ -4,17 +4,16 @@ import {
   Plus, 
   Filter, 
   Trash2, 
-  MoreHorizontal, 
-  Eye, 
-  CheckCircle, 
-  XCircle, 
+  Eye, // Icon View
   Loader2, 
   CalendarIcon, 
   X,
   Check,
   ChevronsUpDown,
-  Wallet,
-  Send
+  Send,
+  RefreshCcw,
+  FileText, // Icon Detail Modal
+  AlignLeft
 } from "lucide-react";
 import { 
   Card, 
@@ -23,12 +22,6 @@ import {
   CardTitle, 
   CardDescription 
 } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar"; 
 import { Button } from "@/components/ui/button";
@@ -36,10 +29,10 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-// --- KONFIGURASI API (DARI KODE 2) ---
-const API_BASE_URL = "https://technokingindonesia.com/projekmagank/accurate-integration-project";
+// --- KONFIGURASI API ---
+const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
 
-// --- TIPE DATA (DARI KODE 2) ---
+// --- TIPE DATA ---
 interface GlAccount {
   id: number;
   name: string;
@@ -55,7 +48,27 @@ interface DetailAccount {
     detailNotes: string;
 }
 
-// --- COMPONENT ASYNC SELECT (REUSABLE & STYLED) ---
+// Interface Data List Real
+interface KasbonData {
+    id: number;
+    number: string;
+    transDate: string;
+    description: string;
+    amount: number;
+    status: string;
+}
+
+// [BARU] Interface Detail untuk Modal
+interface KasbonDetail extends KasbonData {
+    bank: { no: string; name: string }; // Akun Sumber
+    detailAccount: {
+        account: { no: string; name: string };
+        amount: number;
+        detailNotes: string;
+    }[];
+}
+
+// --- COMPONENT ASYNC SELECT ---
 interface AsyncSelectProps {
     value: string;
     displayName?: string;
@@ -174,40 +187,91 @@ const AsyncAccountSelect: React.FC<AsyncSelectProps> = ({
     );
 };
 
-// --- DATA MOCK (DARI KODE 1 - VISUAL ONLY) ---
-const mockKasbonData = [
-  { id: "KSB-2024-001", employee: "Ahmad Fauzi", department: "Marketing", amount: "Rp 5.000.000", purpose: "Client Meeting Expenses", status: "Approved" },
-  { id: "KSB-2024-002", employee: "Siti Nurhaliza", department: "Operations", amount: "Rp 3.500.000", purpose: "Office Supplies", status: "Pending" },
-  { id: "KSB-2024-003", employee: "Budi Santoso", department: "IT", amount: "Rp 8.000.000", purpose: "Hardware Purchase", status: "Approved" },
-];
-
-const mockMetrics = [
-    { title: "Total Outstanding", value: "Rp 28.500.000", subtitle: "5 active requests", color: "text-foreground" },
-    { title: "Pending Approval", value: "Rp 13.500.000", subtitle: "2 requests waiting", color: "text-yellow-600" },
-    { title: "Settled This Month", value: "Rp 45.000.000", subtitle: "12 settled", color: "text-green-600" },
-];
-
 // --- MAIN PAGE COMPONENT ---
 export function KasbonPage() {
-    // --- STATE & LOGIC (DARI KODE 2) ---
     const { toast } = useToast();
     const [transDate, setTransDate] = useState<Date>(new Date());
     
-    // State Header
+    // State Header Form
     const [bankId, setBankId] = useState<number | null>(null);
     const [bankName, setBankName] = useState("");
     const [description, setDescription] = useState("");
     const [saving, setSaving] = useState(false);
     
-    // State Detail (Multi-row)
+    // State Detail Form (Multi-row)
     const [detailAccounts, setDetailAccounts] = useState<DetailAccount[]>([
         { id: 'row_1', accountNo: '', accountName: '', amount: 0, detailNotes: '' },
     ]);
 
-    // UI State
+    // State List Data Real
+    const [kasbonList, setKasbonList] = useState<KasbonData[]>([]);
+    const [loadingList, setLoadingList] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
 
-    // Logic Baris
+    // [BARU] State Detail Modal
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [detailData, setDetailData] = useState<KasbonDetail | null>(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+
+    // Fetch List Kasbon
+    const fetchKasbonList = async (keyword = "") => {
+        setLoadingList(true);
+        try {
+            const url = new URL(`${API_BASE_URL}/Kasbon/List.php`);
+            if (keyword) url.searchParams.append("q", keyword);
+            const res = await fetch(url.toString());
+            const json = await res.json();
+            if (json.s === true && Array.isArray(json.d)) {
+                setKasbonList(json.d);
+            } else {
+                setKasbonList([]);
+            }
+        } catch (error) {
+            console.error("Error fetching list:", error);
+            toast({ title: "Connection Error", description: "Gagal memuat daftar kasbon.", variant: "destructive" });
+        } finally {
+            setLoadingList(false);
+        }
+    };
+
+    // [BARU] Fetch Detail Kasbon
+    const fetchKasbonDetail = async (id: number) => {
+        setLoadingDetail(true);
+        setDetailData(null);
+        try {
+            const res = await fetch(`${API_BASE_URL}/Kasbon/Detail.php?id=${id}`);
+            const json = await res.json();
+            if (json.s === true) {
+                setDetailData(json.d);
+            } else {
+                toast({ title: "Gagal", description: "Gagal memuat detail.", variant: "destructive" });
+                setSelectedId(null);
+            }
+        } catch (error) {
+            toast({ title: "Error", description: "Terjadi kesalahan koneksi.", variant: "destructive" });
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
+
+    // Initial Load & Search
+    useEffect(() => {
+        fetchKasbonList();
+    }, []);
+
+    useEffect(() => {
+        const timer = setTimeout(() => { fetchKasbonList(searchTerm); }, 600);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // Trigger Fetch Detail
+    useEffect(() => {
+        if (selectedId) {
+            fetchKasbonDetail(selectedId);
+        }
+    }, [selectedId]);
+
+    // Logic Baris Form
     const addRow = () => {
         setDetailAccounts([...detailAccounts, { 
             id: `row_${Date.now()}`, accountNo: '', accountName: '', amount: 0, detailNotes: '' 
@@ -228,9 +292,8 @@ export function KasbonPage() {
 
     const totalAmount = detailAccounts.reduce((sum, item) => sum + (item.amount || 0), 0);
 
-    // Submit Handler (KODE 2 Logic)
+    // Submit Handler
     const handleSubmit = async () => {
-        // Validasi
         if (!bankId) {
             toast({ title: "Validasi Gagal", description: "Mohon pilih Sumber Dana (Kas/Bank).", variant: "destructive" });
             return;
@@ -255,7 +318,7 @@ export function KasbonPage() {
                 }))
             };
 
-            const res = await fetch(`${API_BASE_URL}/transaksi_kasbon.php`, {
+            const res = await fetch(`${API_BASE_URL}/Kasbon/Transaksi.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -270,37 +333,142 @@ export function KasbonPage() {
                     className: "bg-green-600 text-white border-green-700" 
                 });
                 
-                // Reset Form
                 setDetailAccounts([{ id: `row_${Date.now()}`, accountNo: '', accountName: '', amount: 0, detailNotes: '' }]);
                 setDescription("");
-                // Opsional: setBankId(null); setBankName("");
+                fetchKasbonList();
             } else {
                 const errorMsg = json.d?.message || (Array.isArray(json.d) ? json.d.join(", ") : "Terjadi kesalahan sistem.");
                 throw new Error(errorMsg);
             }
         } catch (e: any) {
-            toast({ 
-                title: "Gagal Menyimpan", 
-                description: e.message || "Koneksi ke server bermasalah.", 
-                variant: "destructive" 
-            });
+            toast({ title: "Gagal Menyimpan", description: e.message, variant: "destructive" });
         } finally {
             setSaving(false);
         }
     };
 
     const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "Approved": return "bg-green-100 text-green-700";
-            case "Pending": return "bg-yellow-100 text-yellow-700";
-            case "Rejected": return "bg-red-100 text-red-700";
-            default: return "bg-gray-100 text-gray-700";
-        }
+        const s = (status || "").toUpperCase();
+        if (s === "APPROVED") return "bg-green-100 text-green-700";
+        if (s === "REJECTED") return "bg-red-100 text-red-700";
+        return "bg-yellow-100 text-yellow-700"; // Pending/Draft
     };
 
     return (
-        <div className="space-y-6 p-6">
-            {/* Page Header (KODE 1) */}
+        <div className="space-y-6 p-6 relative">
+            
+            {/* --- MODAL DETAIL (OVERLAY) --- */}
+            {selectedId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                        
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-primary" /> 
+                                    Detail Pembayaran
+                                </h3>
+                                <p className="text-xs text-gray-500">Rincian transaksi pengeluaran</p>
+                            </div>
+                            <button onClick={() => setSelectedId(null)} className="p-1 hover:bg-gray-200 rounded-full transition-colors">
+                                <X className="w-6 h-6 text-gray-500" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 overflow-y-auto flex-1">
+                            {loadingDetail ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+                                    <p className="text-sm text-gray-500">Mengambil data dari Accurate...</p>
+                                </div>
+                            ) : detailData ? (
+                                <div className="space-y-6">
+                                    
+                                    {/* Info Utama Grid */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                                        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                                            <span className="block text-xs text-blue-600 font-semibold uppercase tracking-wider">No Transaksi</span>
+                                            <span className="block text-lg font-bold text-gray-900 mt-1">{detailData.number}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                                            <span className="block text-xs text-gray-500 uppercase tracking-wider">Tanggal</span>
+                                            <span className="block font-medium text-gray-900 mt-1">{detailData.transDate}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                                            <span className="block text-xs text-gray-500 uppercase tracking-wider">Total</span>
+                                            <span className="block font-bold text-red-600 mt-1">Rp {detailData.amount.toLocaleString('id-ID')}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-b py-4 border-dashed">
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-gray-500 mb-1">Sumber Dana (Kas/Bank)</h4>
+                                                <p className="text-gray-900 font-medium">{detailData.bank?.name}</p>
+                                                <p className="text-xs text-gray-400 font-mono">{detailData.bank?.no}</p>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-gray-500 mb-1">Keterangan</h4>
+                                                <p className="text-gray-900 italic text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                                                    {detailData.description || "-"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Tabel Rincian Biaya */}
+                                    <div>
+                                        <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                            <AlignLeft className="w-4 h-4 text-orange-600"/> Alokasi Biaya
+                                        </h4>
+                                        <div className="border rounded-lg overflow-hidden shadow-sm">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-gray-100/80 text-gray-600 font-medium border-b">
+                                                    <tr>
+                                                        <th className="px-4 py-2 text-left w-10">#</th>
+                                                        <th className="px-4 py-2 text-left">Akun Biaya</th>
+                                                        <th className="px-4 py-2 text-left">Catatan</th>
+                                                        <th className="px-4 py-2 text-right w-32">Jumlah</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y bg-white">
+                                                    {detailData.detailAccount?.map((item: any, idx: number) => (
+                                                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-4 py-2 text-gray-500 text-center">{idx + 1}</td>
+                                                            <td className="px-4 py-2 font-medium text-gray-800">
+                                                                {item.account?.name}
+                                                                <span className="block text-xs text-gray-400 mt-0.5">{item.account?.no}</span>
+                                                            </td>
+                                                            <td className="px-4 py-2 text-gray-600 italic">{item.detailNotes || "-"}</td>
+                                                            <td className="px-4 py-2 text-right font-bold text-gray-900">
+                                                                {item.amount.toLocaleString('id-ID')}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-muted-foreground bg-gray-50 rounded-lg border border-dashed">
+                                    Data detail tidak ditemukan.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 border-t bg-gray-50 flex justify-end">
+                            <Button onClick={() => setSelectedId(null)} variant="outline">Tutup</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Kasbon / Biaya</h1>
@@ -314,20 +482,7 @@ export function KasbonPage() {
                 </Button>
             </div>
 
-            {/* Summary Cards (KODE 1) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {mockMetrics.map((metric, idx) => (
-                    <Card key={idx} className="shadow-sm">
-                        <CardContent className="p-4">
-                            <p className="text-sm text-muted-foreground">{metric.title}</p>
-                            <p className={`text-2xl font-bold mt-1 ${metric.color}`}>{metric.value}</p>
-                            <p className="text-xs text-muted-foreground mt-2">{metric.subtitle}</p>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
-            {/* Filters (KODE 1) */}
+            {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -340,12 +495,11 @@ export function KasbonPage() {
                     />
                 </div>
                 <Button variant="outline" className="flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Filter
+                    <Filter className="w-4 h-4" /> Filter
                 </Button>
             </div>
 
-            {/* --- FORM KASBON (LOGIC KODE 2 INTEGRATED) --- */}
+            {/* FORM CARD */}
             <Card className="shadow-sm border-input">
                 <CardHeader>
                     <CardTitle>New Kasbon / Expense Request</CardTitle>
@@ -354,7 +508,6 @@ export function KasbonPage() {
                 <CardContent>
                     <div className="space-y-6">
                         
-                        {/* HEADER FORM */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div className="space-y-4">
                                 <div className="space-y-2">
@@ -379,7 +532,7 @@ export function KasbonPage() {
                                         Source Fund (Kas/Bank) <span className="text-red-500">*</span>
                                     </label>
                                     <AsyncAccountSelect 
-                                        apiEndpoint={`${API_BASE_URL}/master_glaccount.php`}
+                                        apiEndpoint={`${API_BASE_URL}/Kasbon/MasterGlAccount.php`}
                                         placeholder="Cari akun kas/bank..."
                                         value={bankName ? bankName.split(" - ")[0] : ""}
                                         displayName={bankName}
@@ -398,29 +551,17 @@ export function KasbonPage() {
                                     <label className="block text-sm font-medium text-foreground">
                                         Request Number
                                     </label>
-                                    <input
-                                        type="text"
-                                        placeholder="Auto-generated"
-                                        disabled
-                                        className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm opacity-70 cursor-not-allowed"
-                                    />
+                                    <input type="text" placeholder="Auto-generated" disabled className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm opacity-70 cursor-not-allowed" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="block text-sm font-medium text-foreground">
                                         General Description
                                     </label>
-                                    <textarea
-                                        rows={3}
-                                        placeholder="Explain the purpose of this cash advance/expense"
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-                                    />
+                                    <textarea rows={3} placeholder="Explain the purpose of this cash advance/expense" value={description} onChange={(e) => setDescription(e.target.value)} className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* DETAIL TABLE (Menggantikan Input Amount Sederhana KODE 1) */}
                         <div className="mt-4 relative z-10">
                             <label className="block text-sm font-medium text-foreground mb-2">
                                 Expense Allocation Details <span className="text-red-500">*</span>
@@ -442,7 +583,7 @@ export function KasbonPage() {
                                                 <td className="px-3 py-2 text-center align-top pt-3 text-muted-foreground">{index + 1}</td>
                                                 <td className="px-3 py-2 align-top pt-2 relative">
                                                     <AsyncAccountSelect 
-                                                        apiEndpoint={`${API_BASE_URL}/master_glaccount.php`}
+                                                        apiEndpoint={`${API_BASE_URL}/Kasbon/MasterGlAccount.php`}
                                                         placeholder="Cari akun target..."
                                                         value={row.accountNo}
                                                         displayName={row.accountName}
@@ -453,29 +594,13 @@ export function KasbonPage() {
                                                     />
                                                 </td>
                                                 <td className="px-3 py-2 align-top pt-2 hidden md:table-cell">
-                                                    <input 
-                                                        type="text"
-                                                        placeholder="Specific notes..." 
-                                                        value={row.detailNotes} 
-                                                        onChange={(e) => updateRow(row.id, 'detailNotes', e.target.value)} 
-                                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                                    />
+                                                    <input type="text" placeholder="Specific notes..." value={row.detailNotes} onChange={(e) => updateRow(row.id, 'detailNotes', e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
                                                 </td>
                                                 <td className="px-3 py-2 align-top pt-2">
-                                                    <input 
-                                                        type="number" 
-                                                        min={0}
-                                                        placeholder="0"
-                                                        value={row.amount || ''} 
-                                                        onChange={(e) => updateRow(row.id, 'amount', parseFloat(e.target.value))} 
-                                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" 
-                                                    />
+                                                    <input type="number" min={0} placeholder="0" value={row.amount || ''} onChange={(e) => updateRow(row.id, 'amount', parseFloat(e.target.value))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
                                                 </td>
                                                 <td className="px-3 py-2 align-top pt-3 text-center">
-                                                    <button 
-                                                        onClick={() => removeRow(row.id)}
-                                                        className="p-1 hover:bg-destructive/10 text-destructive rounded transition-colors disabled:opacity-50"
-                                                    >
+                                                    <button onClick={() => removeRow(row.id)} className="p-1 hover:bg-destructive/10 text-destructive rounded transition-colors disabled:opacity-50">
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </td>
@@ -491,19 +616,13 @@ export function KasbonPage() {
                                     </tfoot>
                                 </table>
                             </div>
-                            <button
-                                onClick={addRow}
-                                className="mt-2 text-sm text-primary hover:underline flex items-center gap-1 font-medium"
-                            >
+                            <button onClick={addRow} className="mt-2 text-sm text-primary hover:underline flex items-center gap-1 font-medium">
                                 <Plus className="w-4 h-4" /> Add Allocation Row
                             </button>
                         </div>
 
-                        {/* ACTIONS */}
                         <div className="flex justify-end gap-3 pt-4 border-t border-border">
-                            <Button variant="outline">
-                                Cancel
-                            </Button>
+                            <Button variant="outline">Cancel</Button>
                             <Button onClick={handleSubmit} disabled={saving} className="min-w-[140px]">
                                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                                 {saving ? "Processing..." : "Submit Request"}
@@ -514,53 +633,66 @@ export function KasbonPage() {
                 </CardContent>
             </Card>
 
-            {/* List View (Placeholder KODE 1) */}
+            {/* [BARU] List View (REAL DATA) */}
             <Card className="shadow-sm">
-                <CardHeader>
-                    <CardTitle>Kasbon Requests</CardTitle>
-                    <CardDescription>Recent cash advance requests (Mock Data)</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Kasbon Requests (Live)</CardTitle>
+                        <CardDescription>50 Data Terbaru dari Accurate</CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => fetchKasbonList()} disabled={loadingList}>
+                        <RefreshCcw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} /> Refresh
+                    </Button>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-lg border">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-muted text-muted-foreground font-medium">
                                 <tr>
-                                    <th className="px-4 py-3">ID</th>
-                                    <th className="px-4 py-3">Employee</th>
-                                    <th className="px-4 py-3 hidden md:table-cell">Purpose</th>
-                                    <th className="px-4 py-3 text-right">Amount</th>
+                                    {/* [BARU] Kolom No */}
+                                    <th className="px-4 py-3 w-12 text-center">No</th>
+                                    <th className="px-4 py-3">No. Transaksi</th>
+                                    <th className="px-4 py-3">Tanggal</th>
+                                    <th className="px-4 py-3 hidden md:table-cell">Keterangan</th>
+                                    <th className="px-4 py-3 text-right">Total Amount</th>
                                     <th className="px-4 py-3 text-center">Status</th>
                                     <th className="px-4 py-3 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
-                                {mockKasbonData.map((item) => (
-                                    <tr key={item.id} className="hover:bg-muted/50 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-primary">{item.id}</td>
-                                        <td className="px-4 py-3 text-foreground">{item.employee}</td>
-                                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{item.purpose}</td>
-                                        <td className="px-4 py-3 text-right font-medium text-foreground">{item.amount}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(item.status)}`}>
-                                                {item.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <button className="p-1 hover:bg-muted rounded">
-                                                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                                                    </button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem><Eye className="w-4 h-4 mr-2" /> View</DropdownMenuItem>
-                                                    <DropdownMenuItem><CheckCircle className="w-4 h-4 mr-2" /> Approve</DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-destructive"><XCircle className="w-4 h-4 mr-2" /> Reject</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {loadingList ? (
+                                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading...</td></tr>
+                                ) : kasbonList.length === 0 ? (
+                                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Tidak ada data ditemukan.</td></tr>
+                                ) : (
+                                    kasbonList.map((item, idx) => (
+                                        <tr key={item.id} className="hover:bg-muted/50 transition-colors">
+                                            {/* Nomor Urut */}
+                                            <td className="px-4 py-3 text-center text-muted-foreground">{idx + 1}</td>
+                                            <td className="px-4 py-3 font-medium text-primary">{item.number}</td>
+                                            <td className="px-4 py-3 text-foreground">{item.transDate}</td>
+                                            <td className="px-4 py-3 text-muted-foreground hidden md:table-cell truncate max-w-xs">{item.description}</td>
+                                            <td className="px-4 py-3 text-right font-medium text-foreground">{item.amount.toLocaleString('id-ID')}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(item.status)}`}>
+                                                    {item.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                {/* [BARU] Tombol View Detail (Icon Mata Saja) */}
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    onClick={() => setSelectedId(item.id)} 
+                                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                    title="Lihat Detail"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

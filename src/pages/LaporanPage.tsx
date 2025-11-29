@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 // --- KONFIGURASI API (DARI KODE 2) ---
-const API_BASE_URL = "https://technokingindonesia.com/projekmagank/accurate-integration-project";
+const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
 
 // --- TYPE DEFINITIONS (DARI KODE 2) ---
 interface AccountData {
@@ -78,7 +78,7 @@ export function LaporanPage() {
             const strFrom = format(fromDate, "dd/MM/yyyy");
             const strTo = format(toDate, "dd/MM/yyyy");
             
-            const url = `${API_BASE_URL}/laporan_laba_rugi.php?fromDate=${strFrom}&toDate=${strTo}`;
+            const url = `${API_BASE_URL}/Laporan/Index.php?fromDate=${strFrom}&toDate=${strTo}`;
 
             const res = await fetch(url);
             if (!res.ok) throw new Error(`Server Error: ${res.status}`);

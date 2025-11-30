@@ -114,7 +114,7 @@ export function LoginPage() {
             <div className="hidden lg:flex items-center justify-center p-12 order-1 bg-primary/10 gradient-maroon shadow-inner">
                 <div className="text-center text-primary-foreground space-y-6 max-w-lg">
                     <h2 className="text-4xl font-extrabold tracking-wide drop-shadow-md">
-                        Sistem Integrasi Akurat
+                        Sistem Integrasi Accurate
                     </h2>
                     <p className="text-lg opacity-90 leading-relaxed">
                         Akses ke Dashboard Eksekutif, Transaksi Harian, dan Laporan Keuangan real-time.

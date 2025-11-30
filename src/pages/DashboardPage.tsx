@@ -129,19 +129,29 @@ export function DashboardPage() {
     return (
         <div className="min-h-screen bg-gray-50/50 p-6 space-y-8">
             
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Executive Dashboard</h1>
-                    <p className="text-muted-foreground mt-1">Real-time financial overview</p>
+            {/* Header - UPDATED WITH card-header-gradient */}
+            <Card className="shadow-lg border-border">
+                <div className="card-header-gradient rounded-b-none">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary-foreground">Executive Dashboard</h1>
+                            <p className="text-primary-foreground/90 mt-1 text-sm">Real-time financial overview</p>
+                        </div>
+                        <Button 
+                            onClick={fetchData} 
+                            disabled={loading} 
+                            variant="secondary" 
+                            className="text-primary hover:bg-white/90 bg-white/80 transition-all duration-300 shadow-md"
+                        >
+                            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCcw className="mr-2 h-4 w-4"/>}
+                            Refresh Data
+                        </Button>
+                    </div>
                 </div>
-                <Button onClick={fetchData} disabled={loading} variant="outline" className="shadow-sm bg-white hover:bg-gray-50">
-                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCcw className="mr-2 h-4 w-4"/>}
-                    Refresh Data
-                </Button>
-            </div>
+            </Card>
+            {/* End of Header Update */}
 
-            {/* KPI CARDS */}
+            {/* KPI CARDS - ASL: AS LIKE ORIGINAL */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Total Cash */}
                 <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-all">
@@ -200,7 +210,7 @@ export function DashboardPage() {
                 </Card>
             </div>
 
-            {/* CHARTS SECTION */}
+            {/* CHARTS SECTION - ASL: AS LIKE ORIGINAL */}
             <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
                 
                 {/* Bar Chart: Saldo Bank */}
@@ -268,7 +278,7 @@ export function DashboardPage() {
                 </Card>
             </div>
 
-            {/* RECENT ACTIVITY TABLES */}
+            {/* RECENT ACTIVITY TABLES - ASL: AS LIKE ORIGINAL */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
                 {/* Recent Invoices */}

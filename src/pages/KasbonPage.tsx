@@ -1,26 +1,28 @@
 import { useState, useEffect, useRef } from "react";
 import { 
-  Search, 
-  Plus, 
-  Filter, 
-  Trash2, 
-  Eye, // Icon View
-  Loader2, 
-  CalendarIcon, 
-  X,
-  Check,
-  ChevronsUpDown,
-  Send,
-  RefreshCcw,
-  FileText, // Icon Detail Modal
-  AlignLeft
+    Search, 
+    Plus, 
+    Filter, 
+    Trash2, 
+    Eye, // Icon View
+    Loader2, 
+    CalendarIcon, 
+    X,
+    Check,
+    ChevronsUpDown,
+    Send,
+    RefreshCcw,
+    FileText, // Icon Detail Modal
+    AlignLeft,
+    ChevronLeft, // Pagination
+    ChevronRight // Pagination
 } from "lucide-react";
 import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+    Card, 
+    CardContent, 
+    CardHeader, 
+    CardTitle, 
+    CardDescription 
 } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar"; 
@@ -31,13 +33,15 @@ import { useToast } from "@/hooks/use-toast";
 
 // --- KONFIGURASI API ---
 const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
+const TIMEOUT_MS = 6000;
+const ROWS_PER_PAGE = 10; // [UPDATE] Batasan baris per halaman
 
 // --- TIPE DATA ---
 interface GlAccount {
-  id: number;
-  name: string;
-  no: string;
-  accountType: string;
+    id: number;
+    name: string;
+    no: string;
+    accountType: string;
 }
 
 interface DetailAccount {
@@ -74,7 +78,7 @@ interface AsyncSelectProps {
     displayName?: string;
     onChange: (val: string, name: string, id?: number) => void;
     placeholder: string;
-    filterType?: string;   // 'CASH_BANK' atau kosong
+    filterType?: string;    // 'CASH_BANK' atau kosong
     apiEndpoint: string;
 }
 
@@ -213,9 +217,13 @@ export function KasbonPage() {
     const [detailData, setDetailData] = useState<KasbonDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
+    // [UPDATE] Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+
     // Fetch List Kasbon
     const fetchKasbonList = async (keyword = "") => {
         setLoadingList(true);
+        setCurrentPage(1); // Reset page on new fetch/search
         try {
             const url = new URL(`${API_BASE_URL}/Kasbon/List.php`);
             if (keyword) url.searchParams.append("q", keyword);
@@ -354,6 +362,17 @@ export function KasbonPage() {
         return "bg-yellow-100 text-yellow-700"; // Pending/Draft
     };
 
+    // [UPDATE] Pagination Logic
+    const totalPages = Math.ceil(kasbonList.length / ROWS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+    const paginatedData = kasbonList.slice(startIndex, startIndex + ROWS_PER_PAGE);
+
+    const goToPage = (page: number) => {
+        if (page >= 1 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+
     return (
         <div className="space-y-6 p-6 relative">
             
@@ -468,21 +487,26 @@ export function KasbonPage() {
                 </div>
             )}
 
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Kasbon / Biaya</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Manage employee cash advances and expenses
-                    </p>
+            {/* Page Header - UPDATED WITH card-header-gradient */}
+            <Card className="shadow-lg border-border">
+                <div className="card-header-gradient rounded-b-none p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary-foreground">Kasbon / Biaya</h1>
+                            <p className="text-primary-foreground/90 mt-1 text-sm">Manage employee cash advances and expenses</p>
+                        </div>
+                        <Button 
+                            className="bg-white text-primary hover:bg-white/90 shadow-md flex items-center gap-2 self-start md:self-auto" 
+                            onClick={() => window.scrollTo({ top: 350, behavior: 'smooth' })}
+                        >
+                            <Plus className="w-4 h-4" />
+                            New Kasbon Request
+                        </Button>
+                    </div>
                 </div>
-                <Button className="btn-gradient flex items-center gap-2 self-start" onClick={() => window.scrollTo({ top: 350, behavior: 'smooth' })}>
-                    <Plus className="w-4 h-4" />
-                    New Kasbon Request
-                </Button>
-            </div>
+            </Card>
 
-            {/* Filters */}
+            {/* Filters - ASL: AS LIKE ORIGINAL */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -499,7 +523,7 @@ export function KasbonPage() {
                 </Button>
             </div>
 
-            {/* FORM CARD */}
+            {/* FORM CARD - ASL: AS LIKE ORIGINAL */}
             <Card className="shadow-sm border-input">
                 <CardHeader>
                     <CardTitle>New Kasbon / Expense Request</CardTitle>
@@ -633,12 +657,12 @@ export function KasbonPage() {
                 </CardContent>
             </Card>
 
-            {/* [BARU] List View (REAL DATA) */}
+            {/* List View (REAL DATA) - ASL: AS LIKE ORIGINAL + PAGINATION */}
             <Card className="shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Kasbon Requests (Live)</CardTitle>
-                        <CardDescription>50 Data Terbaru dari Accurate</CardDescription>
+                        <CardDescription>Menampilkan {paginatedData.length} dari {kasbonList.length} total data.</CardDescription>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => fetchKasbonList()} disabled={loadingList}>
                         <RefreshCcw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} /> Refresh
@@ -646,10 +670,10 @@ export function KasbonPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-sm text-left">
+                        <table className="w-full text-sm text-left table-striped">
                             <thead className="bg-muted text-muted-foreground font-medium">
                                 <tr>
-                                    {/* [BARU] Kolom No */}
+                                    {/* Kolom No */}
                                     <th className="px-4 py-3 w-12 text-center">No</th>
                                     <th className="px-4 py-3">No. Transaksi</th>
                                     <th className="px-4 py-3">Tanggal</th>
@@ -662,24 +686,24 @@ export function KasbonPage() {
                             <tbody className="divide-y divide-border">
                                 {loadingList ? (
                                     <tr><td colSpan={7} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading...</td></tr>
-                                ) : kasbonList.length === 0 ? (
+                                ) : paginatedData.length === 0 ? (
                                     <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Tidak ada data ditemukan.</td></tr>
                                 ) : (
-                                    kasbonList.map((item, idx) => (
+                                    paginatedData.map((item, idx) => (
                                         <tr key={item.id} className="hover:bg-muted/50 transition-colors">
-                                            {/* Nomor Urut */}
-                                            <td className="px-4 py-3 text-center text-muted-foreground">{idx + 1}</td>
+                                            {/* Nomor Urut - Disesuaikan dengan halaman */}
+                                            <td className="px-4 py-3 text-center text-muted-foreground">{startIndex + idx + 1}</td>
                                             <td className="px-4 py-3 font-medium text-primary">{item.number}</td>
                                             <td className="px-4 py-3 text-foreground">{item.transDate}</td>
                                             <td className="px-4 py-3 text-muted-foreground hidden md:table-cell truncate max-w-xs">{item.description}</td>
-                                            <td className="px-4 py-3 text-right font-medium text-foreground">{item.amount.toLocaleString('id-ID')}</td>
+                                            <td className="px-4 py-3 text-right font-medium text-foreground">Rp {item.amount.toLocaleString('id-ID')}</td>
                                             <td className="px-4 py-3 text-center">
                                                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(item.status)}`}>
                                                     {item.status}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                {/* [BARU] Tombol View Detail (Icon Mata Saja) */}
+                                                {/* Tombol View Detail (Icon Mata Saja) */}
                                                 <Button 
                                                     variant="ghost" 
                                                     size="sm" 
@@ -696,6 +720,33 @@ export function KasbonPage() {
                             </tbody>
                         </table>
                     </div>
+                    
+                    {/* [UPDATE] Pagination Footer */}
+                    {kasbonList.length > ROWS_PER_PAGE && (
+                        <div className="flex items-center justify-between px-4 py-3 border-t mt-4">
+                            <div className="text-sm text-muted-foreground">
+                                Page {currentPage} of {totalPages}
+                            </div>
+                            <div className="space-x-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => goToPage(currentPage - 1)}
+                                    disabled={currentPage === 1 || loadingList}
+                                >
+                                    <ChevronLeft className="w-4 h-4" /> Previous
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => goToPage(currentPage + 1)}
+                                    disabled={currentPage === totalPages || loadingList}
+                                >
+                                    Next <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

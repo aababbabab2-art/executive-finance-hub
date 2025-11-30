@@ -40,25 +40,36 @@ export function UserSettingPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="min-h-screen bg-background py-8 px-4">
             <div className="mx-auto max-w-2xl">
-                <Card className="border-t-4 border-t-blue-600 shadow">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-xl text-gray-800">
-                            <UserPlus className="h-5 w-5 text-blue-600" /> Manajemen User
+                <Card className="shadow-lg border-border">
+                    
+                    {/* Updated Card Header with Gradient Theme */}
+                    <div className="card-header-gradient">
+                        <CardTitle className="flex items-center gap-2 text-xl text-primary-foreground font-bold">
+                            <UserPlus className="h-5 w-5" /> Manajemen User
                         </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                    </div>
+                    
+                    <CardContent className="pt-6">
+                        <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Nama Lengkap</Label>
-                                    <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Nama Karyawan" required />
+                                    <Label className="text-foreground">Nama Lengkap</Label>
+                                    <Input 
+                                        value={formData.name} 
+                                        onChange={e => setFormData({...formData, name: e.target.value})} 
+                                        placeholder="Nama Karyawan" 
+                                        className="input-floating"
+                                        required 
+                                    />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Role</Label>
+                                    <Label className="text-foreground">Role</Label>
                                     <Select onValueChange={(val) => setFormData({...formData, role: val})} defaultValue={formData.role}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih Role" /></SelectTrigger>
+                                        <SelectTrigger className="input-floating">
+                                            <SelectValue placeholder="Pilih Role" />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="user">User / Staff</SelectItem>
                                             <SelectItem value="admin">Administrator</SelectItem>
@@ -68,17 +79,31 @@ export function UserSettingPage() {
                             </div>
                             
                             <div className="space-y-2">
-                                <Label>Username</Label>
-                                <Input value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} placeholder="Username untuk login" required />
+                                <Label className="text-foreground">Username</Label>
+                                <Input 
+                                    value={formData.username} 
+                                    onChange={e => setFormData({...formData, username: e.target.value})} 
+                                    placeholder="Username untuk login" 
+                                    className="input-floating"
+                                    required 
+                                />
                             </div>
                             
                             <div className="space-y-2">
-                                <Label>Password</Label>
-                                <Input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Password" required />
+                                <Label className="text-foreground">Password</Label>
+                                <Input 
+                                    type="password" 
+                                    value={formData.password} 
+                                    onChange={e => setFormData({...formData, password: e.target.value})} 
+                                    placeholder="Password" 
+                                    className="input-floating"
+                                    required 
+                                />
                             </div>
 
-                            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
-                                {loading ? <Loader2 className="animate-spin mr-2" /> : "TAMBAH USER"}
+                            <Button type="submit" className="w-full btn-gradient min-h-[40px]" disabled={loading}>
+                                {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <UserPlus className="h-4 w-4 mr-2"/>}
+                                {loading ? "PROCESSING..." : "TAMBAH USER"}
                             </Button>
                         </form>
                     </CardContent>
@@ -86,4 +111,4 @@ export function UserSettingPage() {
             </div>
         </div>
     );
-}   
+}

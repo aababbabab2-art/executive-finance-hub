@@ -1,26 +1,28 @@
 import { useState, useEffect, useRef } from "react";
 import { 
-  Search, 
-  Plus, 
-  Filter, 
-  Trash2, 
-  Eye, 
-  Loader2, 
-  CalendarIcon, 
-  X,
-  Check,
-  ChevronsUpDown,
-  ArrowRight,
-  ArrowRightLeft,
-  RefreshCcw,
-  FileText 
+    Search, 
+    Plus, 
+    Filter, 
+    Trash2, 
+    Eye, 
+    Loader2, 
+    CalendarIcon, 
+    X,
+    Check,
+    ChevronsUpDown,
+    ArrowRight,
+    ArrowRightLeft,
+    RefreshCcw,
+    FileText,
+    ChevronLeft, // Pagination
+    ChevronRight // Pagination
 } from "lucide-react";
 import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+    Card, 
+    CardContent, 
+    CardHeader, 
+    CardTitle, 
+    CardDescription 
 } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar"; 
@@ -33,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // --- KONFIGURASI API ---
 const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
+const ROWS_PER_PAGE = 10; // [UPDATE] Batasan baris per halaman
 
 // --- INTERFACES ---
 interface TransferData {
@@ -175,10 +178,15 @@ export function TransferPage() {
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [detailData, setDetailData] = useState<TransferDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    
+    // [UPDATE] Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+
 
     // Fetch List Transfer
     const fetchTransferList = async (keyword = "") => {
         setLoadingList(true);
+        setCurrentPage(1); // Reset page on new fetch/search
         try {
             const url = new URL(`${API_BASE_URL}/Transfer/List.php`);
             if (keyword) url.searchParams.append("q", keyword);
@@ -275,6 +283,17 @@ export function TransferPage() {
         return "bg-yellow-100 text-yellow-700"; 
     };
 
+    // [UPDATE] Pagination Logic
+    const totalPages = Math.ceil(transferList.length / ROWS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+    const paginatedData = transferList.slice(startIndex, startIndex + ROWS_PER_PAGE);
+
+    const goToPage = (page: number) => {
+        if (page >= 1 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+
     return (
         <div className="space-y-6 p-6 relative">
             
@@ -367,21 +386,26 @@ export function TransferPage() {
                 </div>
             )}
 
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Transfer Bank</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Manage inter-bank transfers (Integrated Accurate)
-                    </p>
+            {/* Page Header - UPDATED WITH card-header-gradient */}
+            <Card className="shadow-lg border-border">
+                <div className="card-header-gradient rounded-b-none p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary-foreground">Transfer Bank</h1>
+                            <p className="text-primary-foreground/90 mt-1 text-sm">Manage inter-bank transfers (Integrated Accurate)</p>
+                        </div>
+                        <Button 
+                            className="bg-white text-primary hover:bg-white/90 shadow-md flex items-center gap-2 self-start md:self-auto" 
+                            onClick={() => window.scrollTo({ top: 350, behavior: 'smooth' })}
+                        >
+                            <Plus className="w-4 h-4" />
+                            New Transfer
+                        </Button>
+                    </div>
                 </div>
-                <Button className="btn-gradient flex items-center gap-2 self-start" onClick={() => window.scrollTo({ top: 350, behavior: 'smooth' })}>
-                    <Plus className="w-4 h-4" />
-                    New Transfer
-                </Button>
-            </div>
+            </Card>
 
-            {/* Filters */}
+            {/* Filters - ASL: AS LIKE ORIGINAL */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -399,7 +423,7 @@ export function TransferPage() {
                 </Button>
             </div>
 
-            {/* --- FORM TRANSFER --- */}
+            {/* --- FORM TRANSFER - ASL: AS LIKE ORIGINAL --- */}
             <Card className="shadow-sm border-input">
                 <CardHeader>
                     <CardTitle>New Bank Transfer</CardTitle>
@@ -494,20 +518,20 @@ export function TransferPage() {
                 </CardContent>
             </Card>
 
-            {/* List Transfer (Real Data) */}
+            {/* List Transfer (Real Data) - UPDATED WITH PAGINATION */}
             <Card className="shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Transfer History (Live)</CardTitle>
-                        <CardDescription>50 data terbaru dari Accurate</CardDescription>
+                        <CardDescription>Menampilkan {paginatedData.length} dari {transferList.length} total data.</CardDescription>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => fetchTransferList()} disabled={loadingList}>
                         <RefreshCcw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} /> Refresh
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
+                    <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-sm text-left table-striped">
                             <thead className="bg-muted text-muted-foreground font-medium">
                                 <tr>
                                     {/* Kolom No */}
@@ -524,12 +548,12 @@ export function TransferPage() {
                             <tbody className="divide-y divide-border">
                                 {loadingList ? (
                                     <tr><td colSpan={8} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading...</td></tr>
-                                ) : transferList.length === 0 ? (
+                                ) : paginatedData.length === 0 ? (
                                     <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Tidak ada data ditemukan.</td></tr>
                                 ) : (
-                                    transferList.map((item, idx) => (
+                                    paginatedData.map((item, idx) => (
                                         <tr key={item.id} className="hover:bg-muted/50 transition-colors">
-                                            <td className="px-4 py-3 text-center text-muted-foreground">{idx + 1}</td>
+                                            <td className="px-4 py-3 text-center text-muted-foreground">{startIndex + idx + 1}</td>
                                             <td className="px-4 py-3 font-medium text-primary">{item.number}</td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2 text-sm">
@@ -563,6 +587,33 @@ export function TransferPage() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Footer */}
+                    {transferList.length > ROWS_PER_PAGE && (
+                        <div className="flex items-center justify-between px-4 py-3 border-t mt-4">
+                            <div className="text-sm text-muted-foreground">
+                                Page {currentPage} of {totalPages}
+                            </div>
+                            <div className="space-x-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => goToPage(currentPage - 1)}
+                                    disabled={currentPage === 1 || loadingList}
+                                >
+                                    <ChevronLeft className="w-4 h-4" /> Previous
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => goToPage(currentPage + 1)}
+                                    disabled={currentPage === totalPages || loadingList}
+                                >
+                                    Next <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

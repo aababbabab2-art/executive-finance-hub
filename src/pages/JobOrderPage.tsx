@@ -1,27 +1,29 @@
 import { useState, useEffect, useRef } from "react";
 import { 
-  Search, 
-  Plus, 
-  Filter, 
-  Trash2, 
-  MoreHorizontal, 
-  Eye, // Icon Mata untuk View
-  Edit, 
-  Loader2, 
-  CalendarIcon, 
-  X,
-  Check,
-  ChevronsUpDown,
-  Save,
-  RefreshCcw, // Icon Refresh
-  FileText // Icon Detail di Modal
+    Search, 
+    Plus, 
+    Filter, 
+    Trash2, 
+    MoreHorizontal, 
+    Eye, // Icon Mata untuk View
+    Edit, 
+    Loader2, 
+    CalendarIcon, 
+    X,
+    Check,
+    ChevronsUpDown,
+    Save,
+    RefreshCcw, // Icon Refresh
+    FileText, // Icon Detail di Modal
+    ChevronLeft, // Pagination
+    ChevronRight // Pagination
 } from "lucide-react";
 import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+    Card, 
+    CardContent, 
+    CardHeader, 
+    CardTitle, 
+    CardDescription 
 } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar"; 
@@ -33,27 +35,28 @@ import { useToast } from "@/hooks/use-toast";
 // --- KONFIGURASI API ---
 const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
 const TIMEOUT_MS = 6000;
+const ROWS_PER_PAGE = 10; // [UPDATE] Batasan baris per halaman
 
 // --- TYPE DEFINITIONS ---
 interface Customer {
-  id: number;
-  name: string;
-  customerNo: string;
+    id: number;
+    name: string;
+    customerNo: string;
 }
 
 interface Item {
-  id: number | string;
-  name: string;
-  no: string; 
-  unitName?: string; 
-  itemType: string; 
+    id: number | string;
+    name: string;
+    no: string; 
+    unitName?: string; 
+    itemType: string; 
 }
 
 interface LineItem {
-  id: string;
-  no: string; 
-  itemName: string;
-  quantity: number;
+    id: string;
+    no: string; 
+    itemName: string;
+    quantity: number;
 }
 
 interface JobOrderData {
@@ -192,6 +195,10 @@ export function JobOrderPage() {
     // Search/Filter State
     const [searchTerm, setSearchTerm] = useState("");
 
+    // [UPDATE] Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0); // Optional: Untuk mengetahui total data sebenarnya
+
     // --- FETCH MASTER DATA LOGIC (KODE 2 - DIJAMIN UTUH) ---
     const fetchMasterData = async (endpoint: string) => {
         const controller = new AbortController();
@@ -222,9 +229,10 @@ export function JobOrderPage() {
             } else {
                 throw new Error(data.d ? data.d[0] : `Failed to load ${endpoint}.`);
             }
-        } catch (error) {
+        } catch (error: any) {
             if (error.name !== 'AbortError') {
                 console.error(`Error loading ${endpoint}:`, error);
+                // Menambahkan toast di sini jika error fatal, tapi biarkan function pemanggil yang handle notifikasi.
             }
             return [];
         } finally {
@@ -256,6 +264,7 @@ export function JobOrderPage() {
     // [BARU] Function untuk mengambil data List Job Order
     const fetchJobOrderList = async (keyword = "") => {
         setLoadingList(true);
+        setCurrentPage(1); // Reset page on new search/fetch
         try {
             const url = new URL(`${API_BASE_URL}/JobOrder/List.php`);
             if (keyword) url.searchParams.append("q", keyword);
@@ -265,8 +274,10 @@ export function JobOrderPage() {
 
             if (json.s === true && Array.isArray(json.d)) {
                 setJobOrderList(json.d);
+                setTotalItems(json.d.length); // Assuming the list API returns all filtered data
             } else {
                 setJobOrderList([]);
+                setTotalItems(0);
             }
         } catch (error) {
             console.error("Gagal mengambil list job order", error);
@@ -427,6 +438,17 @@ export function JobOrderPage() {
     const customerOptions = customers.map(c => ({ value: c.customerNo, label: `${c.name} (${c.customerNo})` }));
     const itemOptions = items.filter(i => i.itemType === 'INVENTORY').map(i => ({ value: i.no, label: `${i.name}` }));
 
+    // [UPDATE] Pagination Logic
+    const totalPages = Math.ceil(jobOrderList.length / ROWS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+    const paginatedData = jobOrderList.slice(startIndex, startIndex + ROWS_PER_PAGE);
+
+    const goToPage = (page: number) => {
+        if (page >= 1 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+
     return (
         <div className="space-y-6 p-6 relative">
             
@@ -545,21 +567,24 @@ export function JobOrderPage() {
                 </div>
             )}
 
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Job Order</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Manage and track all job orders (Integrated CSB)
-                    </p>
+            {/* Page Header - START OF UPDATE */}
+            <Card className="shadow-lg border-border">
+                <div className="card-header-gradient rounded-b-none p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary-foreground">Job Order</h1>
+                            <p className="text-primary-foreground/90 mt-1 text-sm">Manage and track all job orders (Integrated CSB)</p>
+                        </div>
+                        <Button className="bg-white text-primary hover:bg-white/90 shadow-md flex items-center gap-2 self-start md:self-auto" onClick={() => window.scrollTo({ top: 300, behavior: 'smooth' })}>
+                            <Plus className="w-4 h-4" />
+                            New Job Order
+                        </Button>
+                    </div>
                 </div>
-                <Button className="btn-gradient flex items-center gap-2 self-start" onClick={() => window.scrollTo({ top: 300, behavior: 'smooth' })}>
-                    <Plus className="w-4 h-4" />
-                    New Job Order
-                </Button>
-            </div>
+            </Card>
+            {/* Page Header - END OF UPDATE */}
 
-            {/* Filters & Search */}
+            {/* Filters & Search - ASL: AS LIKE ORIGINAL */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -577,7 +602,7 @@ export function JobOrderPage() {
                 </Button>
             </div>
 
-            {/* FORM CARD */}
+            {/* FORM CARD - ASL: AS LIKE ORIGINAL */}
             <Card className="shadow-sm border-input">
                 <CardHeader>
                     <CardTitle>Create Job Order</CardTitle>
@@ -730,12 +755,12 @@ export function JobOrderPage() {
                 </CardContent>
             </Card>
 
-            {/* List Job Order Real Data */}
+            {/* List Job Order Real Data - ASL: AS LIKE ORIGINAL + PAGINATION */}
             <Card className="shadow-sm border-0">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Job Order List (Live)</CardTitle>
-                        <CardDescription>50 data terbaru dari Accurate</CardDescription>
+                        <CardDescription>Menampilkan {paginatedData.length} dari {jobOrderList.length} total data.</CardDescription>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => fetchJobOrderList()} disabled={loadingList}>
                         <RefreshCcw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} /> Refresh
@@ -743,7 +768,7 @@ export function JobOrderPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-sm text-left">
+                        <table className="w-full text-sm text-left table-striped">
                             <thead className="bg-muted text-muted-foreground font-semibold uppercase text-xs tracking-wider">
                                 <tr>
                                     {/* KOLOM NOMOR URUT */}
@@ -758,11 +783,11 @@ export function JobOrderPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border bg-card">
-                                {loadingList ? (<tr><td colSpan={8} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading Data...</td></tr>) : jobOrderList.length === 0 ? (<tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Tidak ada data.</td></tr>) : (
-                                    jobOrderList.map((order, index) => (
+                                {loadingList ? (<tr><td colSpan={8} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading Data...</td></tr>) : paginatedData.length === 0 ? (<tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Tidak ada data.</td></tr>) : (
+                                    paginatedData.map((order, index) => (
                                         <tr key={order.id} className="hover:bg-muted/30 transition-colors">
-                                            {/* NOMOR URUT */}
-                                            <td className="px-4 py-3 text-center text-muted-foreground">{index + 1}</td>
+                                            {/* NOMOR URUT - Disesuaikan dengan halaman */}
+                                            <td className="px-4 py-3 text-center text-muted-foreground">{startIndex + index + 1}</td>
                                             
                                             <td className="px-4 py-3 font-medium text-primary">{order.number}</td>
                                             <td className="px-4 py-3 whitespace-nowrap">{order.transDate}</td>
@@ -798,7 +823,35 @@ export function JobOrderPage() {
                         </table>
                     </div>
                 </CardContent>
+                
+                {/* [UPDATE] Pagination Footer */}
+                {jobOrderList.length > ROWS_PER_PAGE && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t">
+                        <div className="text-sm text-muted-foreground">
+                            Page {currentPage} of {totalPages}
+                        </div>
+                        <div className="space-x-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => goToPage(currentPage - 1)}
+                                disabled={currentPage === 1 || loadingList}
+                            >
+                                <ChevronLeft className="w-4 h-4" /> Previous
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => goToPage(currentPage + 1)}
+                                disabled={currentPage === totalPages || loadingList}
+                            >
+                                Next <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
+                
             </Card>
         </div>
     );
-};
+}

@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, ArrowRight, TrendingUp, Layers } from "lucide-react";
+import { cn } from "@/lib/utils"; // Import cn untuk styling konsisten
 
 const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
 
@@ -46,41 +47,95 @@ export function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-            <Card className="w-full max-w-md shadow-lg border-t-4 border-t-red-800">
-                <CardHeader className="text-center">
-                    <div className="mx-auto bg-red-100 w-12 h-12 rounded-full flex items-center justify-center mb-2">
-                        <Lock className="h-6 w-6 text-red-800" />
+        <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background">
+            
+            {/* Kolom Kiri: Login Form (Visible on all screens) */}
+            <div className="flex items-center justify-center p-8 lg:p-12 order-2 lg:order-1">
+                <Card className="w-full max-w-md shadow-2xl border-none">
+                    <CardHeader className="text-center pb-6">
+                        <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-primary/10">
+                            <Lock className="h-7 w-7 text-primary" />
+                        </div>
+                        <CardTitle className="text-3xl font-extrabold text-foreground tracking-tight">
+                            Masuk ke Sistem
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                            Integrasi Akuntansi & Manajemen
+                        </p>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="username">Username</Label>
+                                <div className="relative">
+                                    <Input 
+                                        id="username"
+                                        type="text" 
+                                        placeholder="Masukkan username" 
+                                        value={username} 
+                                        onChange={(e) => setUsername(e.target.value)} 
+                                        className="input-floating"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Password</Label>
+                                <div className="relative">
+                                    <Input 
+                                        id="password"
+                                        type="password" 
+                                        placeholder="Masukkan password" 
+                                        value={password} 
+                                        onChange={(e) => setPassword(e.target.value)} 
+                                        className="input-floating"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <Button 
+                                type="submit" 
+                                className="w-full btn-gradient min-h-[44px] text-lg font-bold" 
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <Loader2 className="animate-spin mr-2 h-5 w-5" />
+                                ) : (
+                                    <ArrowRight className="mr-2 h-5 w-5" />
+                                )}
+                                {loading ? "Memproses..." : "LOGIN"}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Kolom Kanan: Visual & Informasi (Background Gradient) */}
+            <div className="hidden lg:flex items-center justify-center p-12 order-1 bg-primary/10 gradient-maroon shadow-inner">
+                <div className="text-center text-primary-foreground space-y-6 max-w-lg">
+                    <h2 className="text-4xl font-extrabold tracking-wide drop-shadow-md">
+                        Sistem Integrasi Akurat
+                    </h2>
+                    <p className="text-lg opacity-90 leading-relaxed">
+                        Akses ke Dashboard Eksekutif, Transaksi Harian, dan Laporan Keuangan real-time.
+                    </p>
+                    <div className="grid grid-cols-3 gap-6 pt-4">
+                        <div className="p-4 bg-primary/70 rounded-xl shadow-lg border border-primary/50">
+                            <TrendingUp className="w-8 h-8 mx-auto mb-2" />
+                            <p className="font-semibold">Laba Rugi</p>
+                        </div>
+                        <div className="p-4 bg-primary/70 rounded-xl shadow-lg border border-primary/50">
+                            <Layers className="w-8 h-8 mx-auto mb-2" />
+                            <p className="font-semibold">Manajemen Proyek</p>
+                        </div>
+                        <div className="p-4 bg-primary/70 rounded-xl shadow-lg border border-primary/50">
+                            <Lock className="w-8 h-8 mx-auto mb-2" />
+                            <p className="font-semibold">Keamanan Data</p>
+                        </div>
                     </div>
-                    <CardTitle className="text-2xl font-bold text-gray-800">Accurate System</CardTitle>
-                    <p className="text-sm text-gray-500">Silahkan login untuk melanjutkan</p>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleLogin} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Username</Label>
-                            <Input 
-                                type="text" 
-                                placeholder="Masukkan username" 
-                                value={username} 
-                                onChange={(e) => setUsername(e.target.value)} 
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Password</Label>
-                            <Input 
-                                type="password" 
-                                placeholder="Masukkan password" 
-                                value={password} 
-                                onChange={(e) => setPassword(e.target.value)} 
-                            />
-                        </div>
-                        <Button type="submit" className="w-full bg-red-800 hover:bg-red-900" disabled={loading}>
-                            {loading ? <Loader2 className="animate-spin mr-2" /> : "LOGIN"}
-                        </Button>
-                    </form>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
+            
         </div>
     );
 }

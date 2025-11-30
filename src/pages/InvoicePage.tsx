@@ -1,25 +1,27 @@
 import { useState, useEffect, useRef } from "react";
 import { Send } from "lucide-react";
 import { 
-  Search, 
-  Plus, 
-  Filter, 
-  Trash2, 
-  Eye, // Icon View Detail
-  Loader2, 
-  CalendarIcon, 
-  X,
-  Check,
-  ChevronsUpDown,
-  RefreshCcw,
-  FileText // Icon Detail Modal
+    Search, 
+    Plus, 
+    Filter, 
+    Trash2, 
+    Eye, // Icon View Detail
+    Loader2, 
+    CalendarIcon, 
+    X,
+    Check,
+    ChevronsUpDown,
+    RefreshCcw,
+    FileText, // Icon Detail Modal
+    ChevronLeft, // Pagination
+    ChevronRight // Pagination
 } from "lucide-react";
 import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+    Card, 
+    CardContent, 
+    CardHeader, 
+    CardTitle, 
+    CardDescription 
 } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar"; 
@@ -30,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // --- KONFIGURASI API ---
 const API_BASE_URL = "https://vexacreative.net/projekmagank/accurate-integration-project/Api";
+const ROWS_PER_PAGE = 10; // [UPDATE] Batasan baris per halaman
 
 // --- INTERFACES ---
 interface InvoiceData {
@@ -176,13 +179,8 @@ const AsyncSelect: React.FC<AsyncSelectProps> = ({ value, displayName, onChange,
     );
 };
 
-// --- DATA MOCK SUMMARY ---
-const summaryMetrics = [
-    { title: "Total Invoiced", value: "Rp 323.287.500", color: "text-foreground" },
-    { title: "Paid", value: "Rp 136.530.000", color: "text-green-600" },
-    { title: "Pending", value: "Rp 169.275.000", color: "text-yellow-600" },
-    { title: "Overdue", value: "Rp 17.482.500", color: "text-red-600" },
-];
+// --- DATA MOCK SUMMARY (DIHAPUS KARENA DIKOMENTARI DI KODE ASLI) ---
+// const summaryMetrics = [...]; 
 
 // --- MAIN INVOICE PAGE ---
 export function InvoicePage() {
@@ -205,10 +203,14 @@ export function InvoicePage() {
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [detailData, setDetailData] = useState<InvoiceDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    
+    // [UPDATE] Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
 
     // [BARU] Fetch List Invoice
     const fetchInvoiceList = async (keyword = "") => {
         setLoadingList(true);
+        setCurrentPage(1); // Reset page on new fetch/search
         try {
             const url = new URL(`${API_BASE_URL}/Invoice/List.php`);
             if (keyword) url.searchParams.append("q", keyword);
@@ -269,6 +271,7 @@ export function InvoicePage() {
     };
 
     const addItem = () => {
+        items[items.length - 1].itemNo && // Cek baris terakhir tidak kosong
         setItems([...items, { id: Date.now().toString(), itemNo: '', itemName: '', qty: 1, price: 0 }]);
     };
 
@@ -332,6 +335,17 @@ export function InvoicePage() {
         }
     };
 
+    // [UPDATE] Pagination Logic
+    const totalPages = Math.ceil(invoiceList.length / ROWS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+    const paginatedData = invoiceList.slice(startIndex, startIndex + ROWS_PER_PAGE);
+
+    const goToPage = (page: number) => {
+        if (page >= 1 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+    
     return (
         <div className="space-y-6 p-6 relative">
             
@@ -434,20 +448,25 @@ export function InvoicePage() {
                 </div>
             )}
 
-            {/* Header Page */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Sales Invoice</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Create and manage customer invoices
-                    </p>
+            {/* Header Page - UPDATED WITH card-header-gradient */}
+            <Card className="shadow-lg border-border">
+                <div className="card-header-gradient rounded-b-none p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary-foreground">Sales Invoice</h1>
+                            <p className="text-primary-foreground/90 mt-1 text-sm">Create and manage customer invoices</p>
+                        </div>
+                        <Button 
+                            className="bg-white text-primary hover:bg-white/90 shadow-md flex items-center gap-2 self-start md:self-auto" 
+                            onClick={() => window.scrollTo({ top: 500, behavior: 'smooth' })}
+                        >
+                            <Plus className="w-4 h-4" /> New Invoice
+                        </Button>
+                    </div>
                 </div>
-                <Button className="flex items-center gap-2 self-start" onClick={() => window.scrollTo({ top: 500, behavior: 'smooth' })}>
-                    <Plus className="w-4 h-4" /> New Invoice
-                </Button>
-            </div>
+            </Card>
 
-            {/* Metrics */}
+            {/* Metrics - ASL: AS LIKE ORIGINAL (Commented) */}
             {/* <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 {summaryMetrics.map((metric, idx) => (
                     <Card key={idx} className="shadow-sm">
@@ -459,7 +478,7 @@ export function InvoicePage() {
                 ))}
             </div> */}
 
-            {/* Filter Search */}
+            {/* Filter Search - ASL: AS LIKE ORIGINAL */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -476,7 +495,7 @@ export function InvoicePage() {
                 </Button>
             </div>
 
-            {/* --- FORM CREATE INVOICE --- */}
+            {/* --- FORM CREATE INVOICE - ASL: AS LIKE ORIGINAL --- */}
             <Card className="shadow-sm border-input">
                 <CardHeader>
                     <CardTitle>Create Invoice</CardTitle>
@@ -606,20 +625,20 @@ export function InvoicePage() {
                 </CardContent>
             </Card>
 
-            {/* List Invoice (Real Data) */}
+            {/* List Invoice (Real Data) - UPDATED WITH PAGINATION */}
             <Card className="shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Invoice List</CardTitle>
-                        <CardDescription>Recent invoices history</CardDescription>
+                        <CardDescription>Menampilkan {paginatedData.length} dari {invoiceList.length} total data.</CardDescription>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => fetchInvoiceList()} disabled={loadingList}>
                         <RefreshCcw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} /> Refresh
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
+                    <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-sm text-left table-striped">
                             <thead className="text-muted-foreground bg-muted font-medium">
                                 <tr>
                                     <th className="px-4 py-3 w-10 text-center">No.</th>
@@ -633,13 +652,13 @@ export function InvoicePage() {
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {loadingList ? (
-                                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading...</td></tr>
-                                ) : invoiceList.length === 0 ? (
-                                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Tidak ada data.</td></tr>
+                                    <tr><td colSpan={6} className="p-8 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/>Loading...</td></tr>
+                                ) : paginatedData.length === 0 ? (
+                                    <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Tidak ada data.</td></tr>
                                 ) : (
-                                    invoiceList.map((inv, idx) => (
+                                    paginatedData.map((inv, idx) => (
                                         <tr key={inv.id} className="hover:bg-muted/50 transition-colors">
-                                            <td className="px-4 py-3 text-center text-muted-foreground">{idx + 1}</td>
+                                            <td className="px-4 py-3 text-center text-muted-foreground">{startIndex + idx + 1}</td>
                                             <td className="px-4 py-3 font-medium text-primary">{inv.number}</td>
                                             <td className="px-4 py-3">{inv.customerName}</td>
                                             <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{inv.transDate}</td>
@@ -666,6 +685,33 @@ export function InvoicePage() {
                             </tbody>
                         </table>
                     </div>
+                    
+                    {/* Pagination Footer */}
+                    {invoiceList.length > ROWS_PER_PAGE && (
+                        <div className="flex items-center justify-between px-4 py-3 border-t mt-4">
+                            <div className="text-sm text-muted-foreground">
+                                Page {currentPage} of {totalPages}
+                            </div>
+                            <div className="space-x-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => goToPage(currentPage - 1)}
+                                    disabled={currentPage === 1 || loadingList}
+                                >
+                                    <ChevronLeft className="w-4 h-4" /> Previous
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => goToPage(currentPage + 1)}
+                                    disabled={currentPage === totalPages || loadingList}
+                                >
+                                    Next <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
